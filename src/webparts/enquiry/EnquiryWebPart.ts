@@ -5,6 +5,7 @@ import {
   PropertyPaneTextField
 } from '@microsoft/sp-webpart-base';
 import { escape } from '@microsoft/sp-lodash-subset';
+import { SPHttpClient, SPHttpClientResponse } from '@microsoft/sp-http';
 
 import styles from './EnquiryWebPart.module.scss';
 import * as strings from 'EnquiryWebPartStrings';
@@ -1381,12 +1382,225 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private submitForm(): void {
-    // Here you would typically submit the form data to a SharePoint list or service
-    console.log('Form submitted:', this.formData);
+    // Show loading state
+    const submitButton = this.domElement.querySelector('.submit-btn') as HTMLButtonElement;
+    if (submitButton) {
+      submitButton.disabled = true;
+      submitButton.innerHTML = 'Submitting...';
+    }
     
-    // For demo purposes, we'll just show the thank you step
-    this.currentStep = 4;
-    this.render();
+    // First, create the basic information list item
+    this.createBasicInformationListItem()
+      .then((basicInfoResponse) => {
+        // Get the ID of the created item
+        return basicInfoResponse.json().then(data => {
+          console.log('Basic Information submitted successfully:', data);
+          
+          // Use the ID from the first submission for the related lists
+          const basicInfoId = data.Id || data.id;
+          
+          // Submit to Industry Information list
+          return this.createIndustryInformationListItem(basicInfoId)
+            .then((industryInfoResponse) => {
+              console.log('Industry Information submitted successfully');
+              
+              // Submit to Enquiry Details list
+              return this.createEnquiryDetailsListItem(basicInfoId);
+            });
+        });
+      })
+      .then(() => {
+        console.log('All form data submitted successfully');
+        
+        // Upload files if there are any
+        if (this.formData.files && this.formData.files.length > 0) {
+          return this.uploadFiles(this.formData.files);
+        }
+        return Promise.resolve();
+      })
+      .then(() => {
+        // Show thank you step
+        this.currentStep = 4;
+        this.render();
+      })
+      .catch((error) => {
+        console.error('Error submitting form:', error);
+        
+        // Re-enable submit button
+        if (submitButton) {
+          submitButton.disabled = false;
+          submitButton.innerHTML = this.properties.submitButtonText || 'Submit';
+        }
+        
+        // Show error message to the user
+        const errorContainer = this.domElement.querySelector('.error-message');
+        if (errorContainer) {
+          errorContainer.innerHTML = 'There was an error submitting your form. Please try again later.';
+          errorContainer.className = 'error-message visible';
+        }
+      });
+  }
+
+  /**
+   * Creates a list item in the Basic Information list
+   */
+  private createBasicInformationListItem(): Promise<SPHttpClientResponse> {
+    const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Basic Information\')/items';
+    
+    const listItem = {
+      Title: this.formData.fullName, // Title is a required field in SharePoint lists
+      FullName: this.formData.fullName,
+      OrganisationName: this.formData.organisationName,
+      ContactNumber: this.formData.contactNumber,
+      EmailAddress: this.formData.emailAddress,
+      WebsiteAddress: this.formData.websiteAddress,
+      OperationLocation: this.formData.operationLocation,
+      CountriesOfOperation: this.formData.countriesOfOperation.join(', '),
+      OperationLength: this.formData.operationLength,
+      SubmissionDate: new Date().toISOString()
+    };
+    
+    return this.context.spHttpClient.post(
+      url,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata',
+          'odata-version': ''
+        },
+        body: JSON.stringify(listItem)
+      }
+    );
+  }
+
+  /**
+   * Creates a list item in the Industry Information list
+   */
+  private createIndustryInformationListItem(basicInfoId: number): Promise<SPHttpClientResponse> {
+    const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Industry Information\')/items';
+    
+    const listItem = {
+      Title: `Industry Info for ${this.formData.fullName}`, // Title is a required field in SharePoint lists
+      BasicInformationId: basicInfoId.toString(), // Reference to the Basic Information list item
+      PrimaryBusinessAreas: this.formData.primaryBusinessAreas,
+      ProductServiceCategory: this.formData.productServiceCategory,
+      OtherProductServiceCategory: this.formData.otherProductServiceCategory,
+      OperationalStatus: this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : ''),
+      RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
+      Regulators: this.formData.regulators.join(', '),
+      OtherRegulator: this.formData.otherRegulator
+    };
+    
+    return this.context.spHttpClient.post(
+      url,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata',
+          'odata-version': ''
+        },
+        body: JSON.stringify(listItem)
+      }
+    );
+  }
+
+  /**
+   * Creates a list item in the Enquiry Details list
+   */
+  private createEnquiryDetailsListItem(basicInfoId: number): Promise<SPHttpClientResponse> {
+    const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Enquiry Details\')/items';
+    
+    const listItem = {
+      Title: `Enquiry for ${this.formData.fullName}`, // Title is a required field in SharePoint lists
+      BasicInformationId: basicInfoId.toString(), // Reference to the Basic Information list item
+      ProductServiceDescription: this.formData.productServiceDescription,
+      Questions: this.formData.questions.filter(q => q.trim() !== '').join('\n\n'),
+      AdditionalInformation: this.formData.additionalInformation,
+      FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
+      ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
+      FileAttachments: this.formData.files.length > 0 ? 'Yes' : 'No',
+      NumberOfAttachments: this.formData.files.length.toString()
+    };
+    
+    return this.context.spHttpClient.post(
+      url,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata',
+          'odata-version': ''
+        },
+        body: JSON.stringify(listItem)
+      }
+    );
+  }
+
+  /**
+   * Uploads files to the document library
+   */
+  private uploadFiles(files: File[]): Promise<any> {
+    // If no files, return resolved promise
+    if (!files || files.length === 0) {
+      return Promise.resolve();
+    }
+    
+    // Create folder with timestamp to group files
+    const timestamp = new Date().getTime();
+    const folderName = `Enquiry_${this.formData.fullName.replace(/\s+/g, '_')}_${timestamp}`;
+    
+    // Upload each file and return promise that resolves when all uploads are complete
+    const uploadPromises = files.map(file => this.uploadFile(file, folderName));
+    return Promise.all(uploadPromises);
+  }
+
+  /**
+   * Uploads a single file to the document library
+   */
+  private uploadFile(file: File, folderName: string): Promise<SPHttpClientResponse> {
+    // Create the folder first
+    return this.createFolder(folderName)
+      .then(() => {
+        // Now upload the file to the folder
+        const url = `https://www.ifwg.co.za/_api/web/getfolderbyserverrelativeurl('/EnquiryFormDocuments/${folderName}')/files/add(url='${file.name}',overwrite=true)`;
+        
+        return this.context.spHttpClient.post(
+          url,
+          SPHttpClient.configurations.v1,
+          {
+            headers: {
+              'Accept': 'application/json;odata=nometadata',
+              'Content-type': 'application/octet-stream',
+              'odata-version': ''
+            },
+            body: file
+          }
+        );
+      });
+  }
+
+  /**
+   * Creates a folder in the document library
+   */
+  private createFolder(folderName: string): Promise<SPHttpClientResponse> {
+    const url = `https://www.ifwg.co.za/_api/web/folders`;
+    
+    return this.context.spHttpClient.post(
+      url,
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata',
+          'odata-version': ''
+        },
+        body: JSON.stringify({
+          'ServerRelativeUrl': `/EnquiryFormDocuments/${folderName}`
+        })
+      }
+    );
   }
 
   private resetForm(): void {
