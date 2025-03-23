@@ -1383,48 +1383,74 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
 
   private submitForm(): void {
     // Show loading state
+    console.log('Starting form submission process...');
     const submitButton = this.domElement.querySelector('.submit-btn') as HTMLButtonElement;
     if (submitButton) {
       submitButton.disabled = true;
       submitButton.innerHTML = 'Submitting...';
     }
     
+    console.log('Form data being submitted:', JSON.stringify(this.formData, null, 2));
+    
     // First, create the basic information list item
+    console.log('Attempting to submit Basic Information list item...');
     this.createBasicInformationListItem()
       .then((basicInfoResponse) => {
+        console.log('Basic Information API response status:', basicInfoResponse.status, basicInfoResponse.statusText);
         // Get the ID of the created item
         return basicInfoResponse.json().then(data => {
-          console.log('Basic Information submitted successfully:', data);
+          console.log('Basic Information submitted successfully, response data:', data);
           
           // Use the ID from the first submission for the related lists
           const basicInfoId = data.Id || data.id;
+          console.log('Using Basic Information ID for related lists:', basicInfoId);
           
           // Submit to Industry Information list
+          console.log('Attempting to submit Industry Information list item...');
           return this.createIndustryInformationListItem(basicInfoId)
             .then((industryInfoResponse) => {
+              console.log('Industry Information API response status:', industryInfoResponse.status, industryInfoResponse.statusText);
               console.log('Industry Information submitted successfully');
               
               // Submit to Enquiry Details list
+              console.log('Attempting to submit Enquiry Details list item...');
               return this.createEnquiryDetailsListItem(basicInfoId);
             });
         });
       })
       .then(() => {
-        console.log('All form data submitted successfully');
+        console.log('All form data submitted successfully to SharePoint lists');
         
         // Upload files if there are any
         if (this.formData.files && this.formData.files.length > 0) {
+          console.log('Starting file upload process for', this.formData.files.length, 'files');
           return this.uploadFiles(this.formData.files);
         }
+        console.log('No files to upload');
         return Promise.resolve();
       })
       .then(() => {
+        console.log('Form submission completed successfully, showing thank you step');
         // Show thank you step
         this.currentStep = 4;
         this.render();
       })
       .catch((error) => {
         console.error('Error submitting form:', error);
+        if (error.response) {
+          console.error('Response status:', error.response.status);
+          error.response.json().then(errorData => {
+            console.error('Detailed error information:', errorData);
+          }).catch(e => {
+            console.error('Could not parse error response as JSON');
+          });
+        }
+        if (error.message) {
+          console.error('Error message:', error.message);
+        }
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
+        }
         
         // Re-enable submit button
         if (submitButton) {
@@ -1446,6 +1472,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private createBasicInformationListItem(): Promise<SPHttpClientResponse> {
     const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Basic Information\')/items';
+    console.log('Basic Information API URL:', url);
     
     const listItem = {
       Title: this.formData.fullName, // Title is a required field in SharePoint lists
@@ -1459,16 +1486,20 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       OperationLength: this.formData.operationLength,
       SubmissionDate: new Date().toISOString()
     };
+    console.log('Basic Information list item data:', JSON.stringify(listItem, null, 2));
+    
+    const headers = {
+      'Accept': 'application/json;odata=nometadata',
+      'Content-type': 'application/json;odata=nometadata',
+      'odata-version': ''
+    };
+    console.log('Request headers:', headers);
     
     return this.context.spHttpClient.post(
       url,
       SPHttpClient.configurations.v1,
       {
-        headers: {
-          'Accept': 'application/json;odata=nometadata',
-          'Content-type': 'application/json;odata=nometadata',
-          'odata-version': ''
-        },
+        headers: headers,
         body: JSON.stringify(listItem)
       }
     );
@@ -1479,6 +1510,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private createIndustryInformationListItem(basicInfoId: number): Promise<SPHttpClientResponse> {
     const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Industry Information\')/items';
+    console.log('Industry Information API URL:', url);
     
     const listItem = {
       Title: `Industry Info for ${this.formData.fullName}`, // Title is a required field in SharePoint lists
@@ -1491,6 +1523,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       Regulators: this.formData.regulators.join(', '),
       OtherRegulator: this.formData.otherRegulator
     };
+    console.log('Industry Information list item data:', JSON.stringify(listItem, null, 2));
     
     return this.context.spHttpClient.post(
       url,
@@ -1511,6 +1544,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private createEnquiryDetailsListItem(basicInfoId: number): Promise<SPHttpClientResponse> {
     const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Enquiry Details\')/items';
+    console.log('Enquiry Details API URL:', url);
     
     const listItem = {
       Title: `Enquiry for ${this.formData.fullName}`, // Title is a required field in SharePoint lists
@@ -1523,6 +1557,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       FileAttachments: this.formData.files.length > 0 ? 'Yes' : 'No',
       NumberOfAttachments: this.formData.files.length.toString()
     };
+    console.log('Enquiry Details list item data:', JSON.stringify(listItem, null, 2));
     
     return this.context.spHttpClient.post(
       url,
@@ -1550,9 +1585,13 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Create folder with timestamp to group files
     const timestamp = new Date().getTime();
     const folderName = `Enquiry_${this.formData.fullName.replace(/\s+/g, '_')}_${timestamp}`;
+    console.log('Creating folder for file uploads:', folderName);
     
     // Upload each file and return promise that resolves when all uploads are complete
-    const uploadPromises = files.map(file => this.uploadFile(file, folderName));
+    const uploadPromises = files.map((file, index) => {
+      console.log(`Starting upload for file ${index + 1}/${files.length}: ${file.name}`);
+      return this.uploadFile(file, folderName);
+    });
     return Promise.all(uploadPromises);
   }
 
@@ -1561,10 +1600,12 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private uploadFile(file: File, folderName: string): Promise<SPHttpClientResponse> {
     // Create the folder first
+    console.log(`Creating folder ${folderName} for file ${file.name}`);
     return this.createFolder(folderName)
       .then(() => {
         // Now upload the file to the folder
         const url = `https://www.ifwg.co.za/_api/web/getfolderbyserverrelativeurl('/EnquiryFormDocuments/${folderName}')/files/add(url='${file.name}',overwrite=true)`;
+        console.log('File upload URL:', url);
         
         return this.context.spHttpClient.post(
           url,
@@ -1578,6 +1619,14 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
             body: file
           }
         );
+      })
+      .then(response => {
+        console.log(`File ${file.name} upload response status:`, response.status, response.statusText);
+        return response;
+      })
+      .catch(error => {
+        console.error(`Error uploading file ${file.name}:`, error);
+        throw error;
       });
   }
 
@@ -1586,6 +1635,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private createFolder(folderName: string): Promise<SPHttpClientResponse> {
     const url = `https://www.ifwg.co.za/_api/web/folders`;
+    console.log('Folder creation URL:', url);
+    
+    const folderUrl = `/EnquiryFormDocuments/${folderName}`;
+    console.log('Creating folder with ServerRelativeUrl:', folderUrl);
     
     return this.context.spHttpClient.post(
       url,
@@ -1597,10 +1650,18 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           'odata-version': ''
         },
         body: JSON.stringify({
-          'ServerRelativeUrl': `/EnquiryFormDocuments/${folderName}`
+          'ServerRelativeUrl': folderUrl
         })
       }
-    );
+    )
+      .then(response => {
+        console.log('Folder creation response status:', response.status, response.statusText);
+        return response;
+      })
+      .catch(error => {
+        console.error('Error creating folder:', error);
+        throw error;
+      });
   }
 
   private resetForm(): void {
