@@ -1114,64 +1114,69 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Operational status validation
     const operationalStatusYes = this.domElement.querySelector('#operationalStatusYes') as HTMLInputElement;
     const operationalStatusNo = this.domElement.querySelector('#operationalStatusNo') as HTMLInputElement;
-    console.log('Operational status:', 
-      operationalStatusYes ? operationalStatusYes.checked : undefined, 
-      operationalStatusNo ? operationalStatusNo.checked : undefined);
-    if ((!operationalStatusYes || !operationalStatusYes.checked) && (!operationalStatusNo || !operationalStatusNo.checked)) {
+    console.log('Operational status:', operationalStatusYes && operationalStatusYes.checked ? 'Yes' : (operationalStatusNo && operationalStatusNo.checked ? 'No' : 'Not selected'));
+    
+    if (operationalStatusYes && operationalStatusYes.checked) {
+      this.formData.operationalStatus = true;
+    } else if (operationalStatusNo && operationalStatusNo.checked) {
+      this.formData.operationalStatus = false;
+    } else {
       console.log('Operational status is invalid');
       isValid = false;
-    } else {
-      this.formData.operationalStatus = operationalStatusYes.checked;
     }
     
     // Regulatory status validation
     const regulatoryStatusYes = this.domElement.querySelector('#regulatoryStatusYes') as HTMLInputElement;
     const regulatoryStatusNo = this.domElement.querySelector('#regulatoryStatusNo') as HTMLInputElement;
-    console.log('Regulatory status:', 
-      regulatoryStatusYes ? regulatoryStatusYes.checked : undefined, 
-      regulatoryStatusNo ? regulatoryStatusNo.checked : undefined);
-    if ((!regulatoryStatusYes || !regulatoryStatusYes.checked) && (!regulatoryStatusNo || !regulatoryStatusNo.checked)) {
-      console.log('Regulatory status is invalid');
-      isValid = false;
-    } else {
-      this.formData.regulatoryStatus = regulatoryStatusYes.checked;
-    }
+    console.log('Regulatory status:', regulatoryStatusYes && regulatoryStatusYes.checked ? 'Yes' : (regulatoryStatusNo && regulatoryStatusNo.checked ? 'No' : 'Not selected'));
     
-    // Regulators validation if regulatory status is "Yes"
-    if (this.formData.regulatoryStatus === true) {
-      console.log('Regulators:', this.formData.regulators);
-      if (this.formData.regulators.length === 0) {
-        const regulatorCheckboxes = this.domElement.querySelectorAll('.regulator-checkbox:checked') as NodeListOf<HTMLInputElement>;
-        console.log('Regulator checkboxes found:', regulatorCheckboxes.length);
+    if (regulatoryStatusYes && regulatoryStatusYes.checked) {
+      this.formData.regulatoryStatus = true;
+      
+      // Make sure regulators array exists
+      if (!this.formData.regulators) {
+        this.formData.regulators = [];
+      }
+      
+      // Regulator validation (only if regulatory status is Yes)
+      const regulatorCheckboxes = this.domElement.querySelectorAll('.regulator-checkbox:checked') as NodeListOf<HTMLInputElement>;
+      console.log('Regulators checked count:', regulatorCheckboxes ? regulatorCheckboxes.length : 0);
+      
+      if (!regulatorCheckboxes || regulatorCheckboxes.length === 0) {
+        console.log('No regulators selected');
+        isValid = false;
+      } else {
+        this.formData.regulators = Array.from(regulatorCheckboxes).map(checkbox => checkbox.value);
         
-        // Check if there are checked checkboxes but the array is empty (sync issue)
-        if (regulatorCheckboxes.length > 0) {
-          // Sync the form data
-          this.formData.regulators = Array.from(regulatorCheckboxes).map(checkbox => checkbox.value);
-          console.log('Synced regulators:', this.formData.regulators);
-        } else {
-          console.log('No regulators selected');
-          isValid = false;
+        // Check for Other regulator
+        if (this.formData.regulators.indexOf('Other') !== -1) {
+          const otherRegulator = this.domElement.querySelector('#otherRegulator') as HTMLInputElement;
+          console.log('Other regulator:', otherRegulator ? otherRegulator.value : undefined);
+          
+          if (!otherRegulator || !otherRegulator.value.trim()) {
+            console.log('Other regulator is invalid');
+            isValid = false;
+          } else {
+            this.formData.otherRegulator = otherRegulator.value.trim();
+          }
         }
       }
+    } else if (regulatoryStatusNo && regulatoryStatusNo.checked) {
+      this.formData.regulatoryStatus = false;
+      // If regulatory status is No, we don't need regulators
+      this.formData.regulators = [];
+    } else {
+      console.log('Regulatory status is invalid');
+      isValid = false;
     }
     
-    // Other regulator validation if "Other" is selected
-    if (this.formData.regulators.indexOf('Other') !== -1) {
-      const otherRegulatorInput = this.domElement.querySelector('#otherRegulator') as HTMLInputElement;
-      console.log('Other regulator:', otherRegulatorInput ? otherRegulatorInput.value : undefined);
-      if (otherRegulatorInput && otherRegulatorInput.value.trim()) {
-        this.formData.otherRegulator = otherRegulatorInput.value.trim();
-      }
-    }
-    
-    console.log('Step 2 validation result:', isValid);
-    
-    // Set validation attempted flag and re-render if not valid
+    // Re-render to show validation messages if invalid
     if (!isValid) {
+      console.log('Step 2 validation failed');
       this.render();
     }
     
+    console.log('Step 2 validation result:', isValid);
     return isValid;
   }
 
@@ -1381,6 +1386,41 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Files are handled by the file upload event handler
   }
 
+  /**
+   * Gets a form digest value from SharePoint
+   */
+  private getFormDigest(): Promise<string> {
+    console.log('Getting form digest from SharePoint');
+    
+    return this.context.spHttpClient.post(
+      'https://www.ifwg.co.za/_api/contextinfo',
+      SPHttpClient.configurations.v1,
+      {
+        headers: {
+          'Accept': 'application/json;odata=verbose',
+          'Content-Type': 'application/json;odata=verbose'
+        }
+      }
+    )
+      .then(response => {
+        console.log('Form digest response status:', response.status, response.statusText);
+        return response.json();
+      })
+      .then(data => {
+        if (data && data.d && data.d.GetContextWebInformation) {
+          console.log('Got form digest value');
+          return data.d.GetContextWebInformation.FormDigestValue;
+        } else {
+          console.error('Failed to get form digest value, response format unexpected:', data);
+          throw new Error('Failed to get form digest value');
+        }
+      })
+      .catch(error => {
+        console.error('Error getting form digest:', error);
+        throw error;
+      });
+  }
+
   private submitForm(): void {
     // Show loading state
     console.log('Starting form submission process...');
@@ -1392,39 +1432,29 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     console.log('Form data being submitted:', JSON.stringify(this.formData, null, 2));
     
-    // First, create the basic information list item
-    console.log('Attempting to submit Basic Information list item...');
-    this.createBasicInformationListItem()
-      .then((basicInfoResponse) => {
-        console.log('Basic Information API response status:', basicInfoResponse.status, basicInfoResponse.statusText);
-        // Get the ID of the created item
-        return basicInfoResponse.json().then(data => {
-          console.log('Basic Information submitted successfully, response data:', data);
-          
-          // Use the ID from the first submission for the related lists
-          const basicInfoId = data.Id || data.id;
-          console.log('Using Basic Information ID for related lists:', basicInfoId);
-          
-          // Submit to Industry Information list
-          console.log('Attempting to submit Industry Information list item...');
-          return this.createIndustryInformationListItem(basicInfoId)
-            .then((industryInfoResponse) => {
-              console.log('Industry Information API response status:', industryInfoResponse.status, industryInfoResponse.statusText);
-              console.log('Industry Information submitted successfully');
-              
-              // Submit to Enquiry Details list
-              console.log('Attempting to submit Enquiry Details list item...');
-              return this.createEnquiryDetailsListItem(basicInfoId);
-            });
+    // First get the form digest
+    this.getFormDigest()
+      .then(formDigest => {
+        // Simplify submission by only creating an Enquiry Details list item with all data
+        console.log('Attempting to submit all form data to Enquiry Details list with form digest...');
+        return this.createEnquiryDetailsListItem(formDigest);
+      })
+      .then((response) => {
+        console.log('Enquiry Details API response status:', response.status, response.statusText);
+        return response.json().then(data => {
+          console.log('Enquiry Details submitted successfully, response data:', data);
+          return Promise.resolve();
         });
       })
       .then(() => {
-        console.log('All form data submitted successfully to SharePoint lists');
+        console.log('All form data submitted successfully to SharePoint list');
         
         // Upload files if there are any
         if (this.formData.files && this.formData.files.length > 0) {
           console.log('Starting file upload process for', this.formData.files.length, 'files');
-          return this.uploadFiles(this.formData.files);
+          return this.getFormDigest().then(formDigest => {
+            return this.uploadFiles(this.formData.files, formDigest);
+          });
         }
         console.log('No files to upload');
         return Promise.resolve();
@@ -1468,107 +1498,71 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   /**
-   * Creates a list item in the Basic Information list
+   * Creates a list item in the Enquiry Details list with all form data combined
    */
-  private createBasicInformationListItem(): Promise<SPHttpClientResponse> {
-    const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Basic Information\')/items';
-    console.log('Basic Information API URL:', url);
-    
-    const listItem = {
-      Title: this.formData.fullName, // Title is a required field in SharePoint lists
-      FullName: this.formData.fullName,
-      OrganisationName: this.formData.organisationName,
-      ContactNumber: this.formData.contactNumber,
-      EmailAddress: this.formData.emailAddress,
-      WebsiteAddress: this.formData.websiteAddress,
-      OperationLocation: this.formData.operationLocation,
-      CountriesOfOperation: this.formData.countriesOfOperation.join(', '),
-      OperationLength: this.formData.operationLength,
-      SubmissionDate: new Date().toISOString()
-    };
-    console.log('Basic Information list item data:', JSON.stringify(listItem, null, 2));
-    
-    const headers = {
-      'Accept': 'application/json;odata=nometadata',
-      'Content-type': 'application/json;odata=nometadata',
-      'odata-version': ''
-    };
-    console.log('Request headers:', headers);
-    
-    return this.context.spHttpClient.post(
-      url,
-      SPHttpClient.configurations.v1,
-      {
-        headers: headers,
-        body: JSON.stringify(listItem)
-      }
-    );
-  }
-
-  /**
-   * Creates a list item in the Industry Information list
-   */
-  private createIndustryInformationListItem(basicInfoId: number): Promise<SPHttpClientResponse> {
-    const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Industry Information\')/items';
-    console.log('Industry Information API URL:', url);
-    
-    const listItem = {
-      Title: `Industry Info for ${this.formData.fullName}`, // Title is a required field in SharePoint lists
-      BasicInformationId: basicInfoId.toString(), // Reference to the Basic Information list item
-      PrimaryBusinessAreas: this.formData.primaryBusinessAreas,
-      ProductServiceCategory: this.formData.productServiceCategory,
-      OtherProductServiceCategory: this.formData.otherProductServiceCategory,
-      OperationalStatus: this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : ''),
-      RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
-      Regulators: this.formData.regulators.join(', '),
-      OtherRegulator: this.formData.otherRegulator
-    };
-    console.log('Industry Information list item data:', JSON.stringify(listItem, null, 2));
-    
-    return this.context.spHttpClient.post(
-      url,
-      SPHttpClient.configurations.v1,
-      {
-        headers: {
-          'Accept': 'application/json;odata=nometadata',
-          'Content-type': 'application/json;odata=nometadata',
-          'odata-version': ''
-        },
-        body: JSON.stringify(listItem)
-      }
-    );
-  }
-
-  /**
-   * Creates a list item in the Enquiry Details list
-   */
-  private createEnquiryDetailsListItem(basicInfoId: number): Promise<SPHttpClientResponse> {
+  private createEnquiryDetailsListItem(formDigest: string): Promise<SPHttpClientResponse> {
     const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Enquiry Details\')/items';
     console.log('Enquiry Details API URL:', url);
     
-    const listItem = {
-      Title: `Enquiry for ${this.formData.fullName}`, // Title is a required field in SharePoint lists
-      BasicInformationId: basicInfoId.toString(), // Reference to the Basic Information list item
-      ProductServiceDescription: this.formData.productServiceDescription,
-      Questions: this.formData.questions.filter(q => q.trim() !== '').join('\n\n'),
-      AdditionalInformation: this.formData.additionalInformation,
-      FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
-      ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
-      FileAttachments: this.formData.files.length > 0 ? 'Yes' : 'No',
-      NumberOfAttachments: this.formData.files.length.toString()
+    // Ensure all values are initialized and safe for toString() operations
+    const safeToString = (value) => {
+      if (value === undefined || value === null) {
+        return '';
+      }
+      return value.toString();
     };
-    console.log('Enquiry Details list item data:', JSON.stringify(listItem, null, 2));
+    
+    // Create a combined description that includes all relevant information
+    const fullDescription = `
+**Form Information**
+Full Name: ${safeToString(this.formData.fullName)}
+Organization: ${safeToString(this.formData.organisationName)}
+Contact: ${safeToString(this.formData.contactNumber)}
+Email: ${safeToString(this.formData.emailAddress)}
+Website: ${safeToString(this.formData.websiteAddress)}
+Operation Location: ${safeToString(this.formData.operationLocation)}
+Operation Length: ${safeToString(this.formData.operationLength)}
+Primary Business: ${safeToString(this.formData.primaryBusinessAreas)}
+Product Category: ${safeToString(this.formData.productServiceCategory)}
+Operational Status: ${this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : '')}
+Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : '')}
+`;
+    
+    // Ensure questions array exists before joining
+    const questionsArray = Array.isArray(this.formData.questions) ? this.formData.questions.filter(q => q && q.trim() !== '') : [];
+    
+    // Prepare data for XML format
+    const title = `Enquiry from ${safeToString(this.formData.fullName)}`;
+    const description = safeToString(this.formData.productServiceDescription) + '\n\n' + fullDescription;
+    const questions = questionsArray.join('\n\n');
+    const additionalInfo = safeToString(this.formData.additionalInformation);
+    
+    // Create XML payload
+    const xmlPayload = `<?xml version="1.0" encoding="utf-8"?>
+<entry xmlns="http://www.w3.org/2005/Atom" xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:georss="http://www.georss.org/georss" xmlns:gml="http://www.opengis.net/gml">
+  <category term="SP.Data.Enquiry_x0020_DetailsListItem" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+  <content type="application/xml">
+    <m:properties>
+      <d:Title>${this.escapeXml(title)}</d:Title>
+      <d:ProductServiceDescription>${this.escapeXml(description)}</d:ProductServiceDescription>
+      <d:Questions>${this.escapeXml(questions)}</d:Questions>
+      <d:AdditionalInformation>${this.escapeXml(additionalInfo)}</d:AdditionalInformation>
+    </m:properties>
+  </content>
+</entry>`;
+    
+    console.log('Sending XML payload to SharePoint');
     
     return this.context.spHttpClient.post(
       url,
       SPHttpClient.configurations.v1,
       {
         headers: {
-          'Accept': 'application/json;odata=nometadata',
-          'Content-type': 'application/json;odata=nometadata',
-          'odata-version': ''
+          'Accept': 'application/json;odata=verbose',
+          'Content-Type': 'application/atom+xml;type=entry',
+          'X-RequestDigest': formDigest
         },
-        body: JSON.stringify(listItem)
+        body: xmlPayload
       }
     );
   }
@@ -1576,7 +1570,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   /**
    * Uploads files to the document library
    */
-  private uploadFiles(files: File[]): Promise<any> {
+  private uploadFiles(files: File[], formDigest: string): Promise<any> {
     // If no files, return resolved promise
     if (!files || files.length === 0) {
       return Promise.resolve();
@@ -1584,13 +1578,14 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     // Create folder with timestamp to group files
     const timestamp = new Date().getTime();
-    const folderName = `Enquiry_${this.formData.fullName.replace(/\s+/g, '_')}_${timestamp}`;
+    const safeFullName = this.formData.fullName ? this.formData.fullName.replace(/\s+/g, '_') : 'Unknown';
+    const folderName = `Enquiry_${safeFullName}_${timestamp}`;
     console.log('Creating folder for file uploads:', folderName);
     
     // Upload each file and return promise that resolves when all uploads are complete
     const uploadPromises = files.map((file, index) => {
       console.log(`Starting upload for file ${index + 1}/${files.length}: ${file.name}`);
-      return this.uploadFile(file, folderName);
+      return this.uploadFile(file, folderName, formDigest);
     });
     return Promise.all(uploadPromises);
   }
@@ -1598,23 +1593,24 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   /**
    * Uploads a single file to the document library
    */
-  private uploadFile(file: File, folderName: string): Promise<SPHttpClientResponse> {
+  private uploadFile(file: File, folderName: string, formDigest: string): Promise<SPHttpClientResponse> {
     // Create the folder first
     console.log(`Creating folder ${folderName} for file ${file.name}`);
-    return this.createFolder(folderName)
+    return this.createFolder(folderName, formDigest)
       .then(() => {
         // Now upload the file to the folder
         const url = `https://www.ifwg.co.za/_api/web/getfolderbyserverrelativeurl('/EnquiryFormDocuments/${folderName}')/files/add(url='${file.name}',overwrite=true)`;
         console.log('File upload URL:', url);
         
+        // For binary uploads, we still use the binary content type
         return this.context.spHttpClient.post(
           url,
           SPHttpClient.configurations.v1,
           {
             headers: {
-              'Accept': 'application/json;odata=nometadata',
-              'Content-type': 'application/octet-stream',
-              'odata-version': ''
+              'Accept': 'application/json;odata=verbose',
+              'Content-Type': 'application/octet-stream',
+              'X-RequestDigest': formDigest
             },
             body: file
           }
@@ -1633,25 +1629,34 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   /**
    * Creates a folder in the document library
    */
-  private createFolder(folderName: string): Promise<SPHttpClientResponse> {
+  private createFolder(folderName: string, formDigest: string): Promise<SPHttpClientResponse> {
     const url = `https://www.ifwg.co.za/_api/web/folders`;
     console.log('Folder creation URL:', url);
     
     const folderUrl = `/EnquiryFormDocuments/${folderName}`;
     console.log('Creating folder with ServerRelativeUrl:', folderUrl);
     
+    // Create XML payload for folder creation
+    const xmlPayload = `<?xml version="1.0" encoding="utf-8"?>
+<entry xmlns="http://www.w3.org/2005/Atom" xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
+  <category term="SP.Folder" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
+  <content type="application/xml">
+    <m:properties>
+      <d:ServerRelativeUrl>${this.escapeXml(folderUrl)}</d:ServerRelativeUrl>
+    </m:properties>
+  </content>
+</entry>`;
+    
     return this.context.spHttpClient.post(
       url,
       SPHttpClient.configurations.v1,
       {
         headers: {
-          'Accept': 'application/json;odata=nometadata',
-          'Content-type': 'application/json;odata=nometadata',
-          'odata-version': ''
+          'Accept': 'application/json;odata=verbose',
+          'Content-Type': 'application/atom+xml;type=entry',
+          'X-RequestDigest': formDigest
         },
-        body: JSON.stringify({
-          'ServerRelativeUrl': folderUrl
-        })
+        body: xmlPayload
       }
     )
       .then(response => {
@@ -1902,6 +1907,19 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     }
     
     console.log('Current industry data saved:', this.formData);
+  }
+
+  /**
+   * Helper function to escape XML special characters
+   */
+  private escapeXml(unsafe: string): string {
+    if (!unsafe) return '';
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
   }
 
   protected getDataVersion(): Version {
