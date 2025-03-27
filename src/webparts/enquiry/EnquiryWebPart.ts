@@ -46,13 +46,13 @@ const COUNTRIES = [
 
 // Constants for the form
 const REGULATORS = [
-  "Financial Conduct Authority (FCA)",
-  "Prudential Regulation Authority (PRA)",
-  "Financial Policy Committee (FPC)",
-  "Payment Systems Regulator (PSR)",
-  "Information Commissioner's Office (ICO)",
-  "Advertising Standards Authority (ASA)",
-  "Competition and Markets Authority (CMA)",
+  "Financial Sector Conduct Authority (FSCA)",
+  "Prudential Authority (PA)",
+  "South African Reserve Bank (SARB)",
+  "Financial Intelligence Centre (FIC)",
+  "National Credit Regulator (NCR)",
+  "Competition Commission (CC)",
+  "South African Revenue Service (SARS)",
   "Other"
 ];
 
@@ -97,7 +97,7 @@ const CATEGORIES = {
   'investment': [
     'Wealth Management',
     'Robo-advisory',
-    'Crowd-funding',
+    'Crowdfunding',
     'P2P Lending',
     'Asset Management',
     'Other'
@@ -176,8 +176,8 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
                 <li>To improve regulatory compliance through clear articulation of regulatory frameworks and reduce regulatory arbitrage.</li>
                 <li>To enhance regulator understanding of innovation in the market.</li>
               </ul>
-              <p>All information provided below will be kept confidential in accordance with the Protection of Personal Information Act, 2013, and the IFWG Privacy Policy.</p>
-              <p>Please ensure you have consulted the <a href="${escape(this.properties.faqPageUrl || '#')}" target="_blank">FAQs page</a> before submitting an enquiry. <strong>All enquiries that relate to, and are addressed by, the FAQs will be referred to the FAQs page.</strong></p>
+              <p>All information provided below will be kept confidential in accordance with the Protection of Personal Information Act, 2013, and the <a href="https://www.ifwg.co.za/Pages/Privacy-Policy.aspx" target="_blank">IFWG Privacy Policy</a>.</p>
+              <p>Please ensure you have consulted the <a href="https://www.ifwg.co.za/Pages/Regulatory-Guidance-Unit.aspx" target="_blank">FAQs page</a> before submitting an enquiry. <strong>All enquiries that relate to, and are addressed by, the FAQs will be referred to the FAQs page.</strong></p>
               <p><em>* Mandatory fields</em></p>
             </div>
             <div class="${ styles.progressContainer }">
@@ -486,7 +486,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           </div>
           ${this.formData.faqConfirmation === null && this.validateAttempted ? `<div class="${styles.errorText}">Please indicate if you've checked our FAQs</div>` : ''}
           <div class="${ styles.faqLink }">
-            <a href="${this.properties.faqPageUrl || '#'}" target="_blank">View FAQs</a>
+            <a href="https://www.ifwg.co.za/Pages/Regulatory-Guidance-Unit.aspx" target="_blank">View FAQs</a>
           </div>
         </div>
         
@@ -507,7 +507,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         <div class="${ styles.formField }">
           <div class="${ styles.checkbox }${!this.formData.consentConfirmation && this.validateAttempted ? ' ' + styles.error : ''}">
             <input type="checkbox" id="consentCheckbox" ${this.formData.consentConfirmation ? 'checked' : ''}>
-            <label for="consentCheckbox">I consent to my information being processed in accordance with the privacy policy <span class="${ styles.required }">*</span></label>
+            <label for="consentCheckbox">I consent to my information being processed in accordance with the <a href="https://www.ifwg.co.za/Pages/Privacy-Policy.aspx" target="_blank">privacy policy</a> <span class="${ styles.required }">*</span></label>
           </div>
           ${!this.formData.consentConfirmation && this.validateAttempted ? `<div class="${styles.errorText}">You must provide consent to submit this form</div>` : ''}
         </div>
@@ -863,32 +863,45 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   
   private setupCountrySelector(): void {
     console.log('Setting up country selector - DEBUG');
-    console.log('Current countries of operation:', this.formData.countriesOfOperation);
     
     // Setup the country search
     const countrySearch = this.domElement.querySelector('#countrySearch') as HTMLInputElement;
-    const countryItems = this.domElement.querySelectorAll('.country-item');
+    const countryList = this.domElement.querySelector('.' + styles.countryList);
     
-    if (countrySearch) {
-      console.log('Found country search field');
+    if (countrySearch && countryList) {
+      console.log('Found country search field and list');
+      
+      // Re-render the country list to ensure it's properly initialized
+      countryList.innerHTML = COUNTRIES.map(country => `
+        <div class="${ styles.countryItem }">
+          <input type="checkbox" id="country-${country.replace(/\s+/g, '-').toLowerCase()}" 
+            class="country-checkbox" value="${country}" 
+            ${this.formData.countriesOfOperation.includes(country) ? 'checked' : ''} />
+          <label for="country-${country.replace(/\s+/g, '-').toLowerCase()}">${country}</label>
+        </div>
+      `).join('');
+      
+      // Setup search functionality
       countrySearch.addEventListener('input', () => {
-        const searchValue = countrySearch.value.toLowerCase();
+        const searchValue = countrySearch.value.toLowerCase().trim();
         console.log('Searching for country:', searchValue);
         
+        const countryItems = countryList.querySelectorAll('.' + styles.countryItem);
         for (let i = 0; i < countryItems.length; i++) {
           const item = countryItems[i] as HTMLElement;
           const label = item.querySelector('label');
-          const countryName = label ? label.textContent.toLowerCase() : '';
-          
-          if (countryName.indexOf(searchValue) !== -1) {
-            item.style.display = '';
-          } else {
-            item.style.display = 'none';
+          if (label) {
+            const countryName = label.textContent.toLowerCase();
+            if (searchValue === '' || countryName.indexOf(searchValue) !== -1) {
+              item.style.display = '';
+            } else {
+              item.style.display = 'none';
+            }
           }
         }
       });
     } else {
-      console.log('Country search field not found');
+      console.log('Country search field or list not found');
     }
     
     // Setup checkbox for country selection
@@ -899,9 +912,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       const checkbox = countryCheckboxes[i] as HTMLInputElement;
       const countryName = checkbox.value;
       
-      if (this.formData.countriesOfOperation.includes(countryName)) {
-        checkbox.checked = true;
-      }
+      checkbox.checked = this.formData.countriesOfOperation.includes(countryName);
       
       checkbox.addEventListener('change', () => {
         console.log('Country checkbox changed:', countryName, checkbox.checked);
@@ -1386,41 +1397,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Files are handled by the file upload event handler
   }
 
-  /**
-   * Gets a form digest value from SharePoint
-   */
-  private getFormDigest(): Promise<string> {
-    console.log('Getting form digest from SharePoint');
-    
-    return this.context.spHttpClient.post(
-      'https://www.ifwg.co.za/_api/contextinfo',
-      SPHttpClient.configurations.v1,
-      {
-        headers: {
-          'Accept': 'application/json;odata=verbose',
-          'Content-Type': 'application/json;odata=verbose'
-        }
-      }
-    )
-      .then(response => {
-        console.log('Form digest response status:', response.status, response.statusText);
-        return response.json();
-      })
-      .then(data => {
-        if (data && data.d && data.d.GetContextWebInformation) {
-          console.log('Got form digest value');
-          return data.d.GetContextWebInformation.FormDigestValue;
-        } else {
-          console.error('Failed to get form digest value, response format unexpected:', data);
-          throw new Error('Failed to get form digest value');
-        }
-      })
-      .catch(error => {
-        console.error('Error getting form digest:', error);
-        throw error;
-      });
-  }
-
   private submitForm(): void {
     // Show loading state
     console.log('Starting form submission process...');
@@ -1432,13 +1408,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     console.log('Form data being submitted:', JSON.stringify(this.formData, null, 2));
     
-    // First get the form digest
-    this.getFormDigest()
-      .then(formDigest => {
-        // Simplify submission by only creating an Enquiry Details list item with all data
-        console.log('Attempting to submit all form data to Enquiry Details list with form digest...');
-        return this.createEnquiryDetailsListItem(formDigest);
-      })
+    // Simplify submission by only creating an Enquiry Details list item with all data
+    console.log('Attempting to submit all form data to Enquiry Details list...');
+    this.createEnquiryDetailsListItem()
       .then((response) => {
         console.log('Enquiry Details API response status:', response.status, response.statusText);
         return response.json().then(data => {
@@ -1452,9 +1424,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         // Upload files if there are any
         if (this.formData.files && this.formData.files.length > 0) {
           console.log('Starting file upload process for', this.formData.files.length, 'files');
-          return this.getFormDigest().then(formDigest => {
-            return this.uploadFiles(this.formData.files, formDigest);
-          });
+          return this.uploadFiles(this.formData.files);
         }
         console.log('No files to upload');
         return Promise.resolve();
@@ -1500,7 +1470,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   /**
    * Creates a list item in the Enquiry Details list with all form data combined
    */
-  private createEnquiryDetailsListItem(formDigest: string): Promise<SPHttpClientResponse> {
+  private createEnquiryDetailsListItem(): Promise<SPHttpClientResponse> {
     const url = 'https://www.ifwg.co.za/_api/web/lists/getbytitle(\'Enquiry Details\')/items';
     console.log('Enquiry Details API URL:', url);
     
@@ -1512,57 +1482,59 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       return value.toString();
     };
     
-    // Create a combined description that includes all relevant information
-    const fullDescription = `
-**Form Information**
-Full Name: ${safeToString(this.formData.fullName)}
-Organization: ${safeToString(this.formData.organisationName)}
-Contact: ${safeToString(this.formData.contactNumber)}
-Email: ${safeToString(this.formData.emailAddress)}
-Website: ${safeToString(this.formData.websiteAddress)}
-Operation Location: ${safeToString(this.formData.operationLocation)}
-Operation Length: ${safeToString(this.formData.operationLength)}
-Primary Business: ${safeToString(this.formData.primaryBusinessAreas)}
-Product Category: ${safeToString(this.formData.productServiceCategory)}
-Operational Status: ${this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : '')}
-Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : '')}
-`;
-    
-    // Ensure questions array exists before joining
+    // Ensure arrays exist before joining
     const questionsArray = Array.isArray(this.formData.questions) ? this.formData.questions.filter(q => q && q.trim() !== '') : [];
+    const countriesArray = Array.isArray(this.formData.countriesOfOperation) ? this.formData.countriesOfOperation : [];
+    const regulatorsArray = Array.isArray(this.formData.regulators) ? this.formData.regulators : [];
     
-    // Prepare data for XML format
-    const title = `Enquiry from ${safeToString(this.formData.fullName)}`;
-    const description = safeToString(this.formData.productServiceDescription) + '\n\n' + fullDescription;
-    const questions = questionsArray.join('\n\n');
-    const additionalInfo = safeToString(this.formData.additionalInformation);
+    // Combine all form data into a single list item
+    const listItem = {
+      // Title field is required for SharePoint lists
+      Title: `Enquiry from ${safeToString(this.formData.fullName)}`,
+      
+      // Basic Information fields
+      FullName: safeToString(this.formData.fullName),
+      OrganisationName: safeToString(this.formData.organisationName),
+      ContactNumber: safeToString(this.formData.contactNumber),
+      EmailAddress: safeToString(this.formData.emailAddress),
+      WebsiteAddress: safeToString(this.formData.websiteAddress),
+      OperationLocation: safeToString(this.formData.operationLocation),
+      CountriesOfOperation: countriesArray.join(', '),
+      OperationLength: safeToString(this.formData.operationLength),
+      
+      // Industry Information fields
+      PrimaryBusinessAreas: safeToString(this.formData.primaryBusinessAreas),
+      ProductServiceCategory: safeToString(this.formData.productServiceCategory),
+      OtherProductServiceCategory: safeToString(this.formData.otherProductServiceCategory),
+      OperationalStatus: this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : ''),
+      RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
+      Regulators: regulatorsArray.join(', '),
+      OtherRegulator: safeToString(this.formData.otherRegulator),
+      
+      // Enquiry Details fields
+      ProductServiceDescription: safeToString(this.formData.productServiceDescription),
+      Questions: questionsArray.join('\n\n'),
+      AdditionalInformation: safeToString(this.formData.additionalInformation),
+      FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
+      ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
+      FileAttachments: this.formData.files && this.formData.files.length > 0 ? 'Yes' : 'No',
+      NumberOfAttachments: safeToString(this.formData.files ? this.formData.files.length : 0),
+      
+      // Add submission date
+      SubmissionDate: new Date().toISOString()
+    };
     
-    // Create XML payload
-    const xmlPayload = `<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom" xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata" xmlns:georss="http://www.georss.org/georss" xmlns:gml="http://www.opengis.net/gml">
-  <category term="SP.Data.Enquiry_x0020_DetailsListItem" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
-  <content type="application/xml">
-    <m:properties>
-      <d:Title>${this.escapeXml(title)}</d:Title>
-      <d:ProductServiceDescription>${this.escapeXml(description)}</d:ProductServiceDescription>
-      <d:Questions>${this.escapeXml(questions)}</d:Questions>
-      <d:AdditionalInformation>${this.escapeXml(additionalInfo)}</d:AdditionalInformation>
-    </m:properties>
-  </content>
-</entry>`;
-    
-    console.log('Sending XML payload to SharePoint');
+    console.log('Complete Enquiry Details list item data:', JSON.stringify(listItem, null, 2));
     
     return this.context.spHttpClient.post(
       url,
       SPHttpClient.configurations.v1,
       {
         headers: {
-          'Accept': 'application/json;odata=verbose',
-          'Content-Type': 'application/atom+xml;type=entry',
-          'X-RequestDigest': formDigest
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata'
         },
-        body: xmlPayload
+        body: JSON.stringify(listItem)
       }
     );
   }
@@ -1570,7 +1542,7 @@ Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.for
   /**
    * Uploads files to the document library
    */
-  private uploadFiles(files: File[], formDigest: string): Promise<any> {
+  private uploadFiles(files: File[]): Promise<any> {
     // If no files, return resolved promise
     if (!files || files.length === 0) {
       return Promise.resolve();
@@ -1585,7 +1557,7 @@ Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.for
     // Upload each file and return promise that resolves when all uploads are complete
     const uploadPromises = files.map((file, index) => {
       console.log(`Starting upload for file ${index + 1}/${files.length}: ${file.name}`);
-      return this.uploadFile(file, folderName, formDigest);
+      return this.uploadFile(file, folderName);
     });
     return Promise.all(uploadPromises);
   }
@@ -1593,24 +1565,23 @@ Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.for
   /**
    * Uploads a single file to the document library
    */
-  private uploadFile(file: File, folderName: string, formDigest: string): Promise<SPHttpClientResponse> {
+  private uploadFile(file: File, folderName: string): Promise<SPHttpClientResponse> {
     // Create the folder first
     console.log(`Creating folder ${folderName} for file ${file.name}`);
-    return this.createFolder(folderName, formDigest)
+    return this.createFolder(folderName)
       .then(() => {
         // Now upload the file to the folder
         const url = `https://www.ifwg.co.za/_api/web/getfolderbyserverrelativeurl('/EnquiryFormDocuments/${folderName}')/files/add(url='${file.name}',overwrite=true)`;
         console.log('File upload URL:', url);
         
-        // For binary uploads, we still use the binary content type
         return this.context.spHttpClient.post(
           url,
           SPHttpClient.configurations.v1,
           {
             headers: {
-              'Accept': 'application/json;odata=verbose',
-              'Content-Type': 'application/octet-stream',
-              'X-RequestDigest': formDigest
+              'Accept': 'application/json;odata=nometadata',
+              'Content-type': 'application/octet-stream',
+              'odata-version': ''
             },
             body: file
           }
@@ -1629,34 +1600,24 @@ Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.for
   /**
    * Creates a folder in the document library
    */
-  private createFolder(folderName: string, formDigest: string): Promise<SPHttpClientResponse> {
+  private createFolder(folderName: string): Promise<SPHttpClientResponse> {
     const url = `https://www.ifwg.co.za/_api/web/folders`;
     console.log('Folder creation URL:', url);
     
     const folderUrl = `/EnquiryFormDocuments/${folderName}`;
     console.log('Creating folder with ServerRelativeUrl:', folderUrl);
     
-    // Create XML payload for folder creation
-    const xmlPayload = `<?xml version="1.0" encoding="utf-8"?>
-<entry xmlns="http://www.w3.org/2005/Atom" xmlns:d="http://schemas.microsoft.com/ado/2007/08/dataservices" xmlns:m="http://schemas.microsoft.com/ado/2007/08/dataservices/metadata">
-  <category term="SP.Folder" scheme="http://schemas.microsoft.com/ado/2007/08/dataservices/scheme" />
-  <content type="application/xml">
-    <m:properties>
-      <d:ServerRelativeUrl>${this.escapeXml(folderUrl)}</d:ServerRelativeUrl>
-    </m:properties>
-  </content>
-</entry>`;
-    
     return this.context.spHttpClient.post(
       url,
       SPHttpClient.configurations.v1,
       {
         headers: {
-          'Accept': 'application/json;odata=verbose',
-          'Content-Type': 'application/atom+xml;type=entry',
-          'X-RequestDigest': formDigest
+          'Accept': 'application/json;odata=nometadata',
+          'Content-type': 'application/json;odata=nometadata'
         },
-        body: xmlPayload
+        body: JSON.stringify({
+          'ServerRelativeUrl': folderUrl
+        })
       }
     )
       .then(response => {
@@ -1907,19 +1868,6 @@ Regulatory Status: ${this.formData.regulatoryStatus === true ? 'Yes' : (this.for
     }
     
     console.log('Current industry data saved:', this.formData);
-  }
-
-  /**
-   * Helper function to escape XML special characters
-   */
-  private escapeXml(unsafe: string): string {
-    if (!unsafe) return '';
-    return unsafe
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&apos;');
   }
 
   protected getDataVersion(): Version {
