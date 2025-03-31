@@ -23,6 +23,7 @@ export interface IEnquiryWebPartProps {
 
 // Country list for dropdown
 const COUNTRIES = [
+  "South Africa",
   "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Antigua and Barbuda", "Argentina", "Armenia", "Australia", "Austria", 
   "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh", "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bhutan", "Bolivia", 
   "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso", "Burundi", "Cabo Verde", "Cambodia", 
@@ -38,7 +39,7 @@ const COUNTRIES = [
   "Norway", "Oman", "Pakistan", "Palau", "Palestine", "Panama", "Papua New Guinea", "Paraguay", "Peru", "Philippines", "Poland", 
   "Portugal", "Qatar", "Romania", "Russia", "Rwanda", "Saint Kitts and Nevis", "Saint Lucia", "Saint Vincent and the Grenadines", 
   "Samoa", "San Marino", "Sao Tome and Principe", "Saudi Arabia", "Senegal", "Serbia", "Seychelles", "Sierra Leone", "Singapore", 
-  "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Africa", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", 
+  "Slovakia", "Slovenia", "Solomon Islands", "Somalia", "South Sudan", "Spain", "Sri Lanka", "Sudan", "Suriname", 
   "Sweden", "Switzerland", "Syria", "Taiwan", "Tajikistan", "Tanzania", "Thailand", "Timor-Leste", "Togo", "Tonga", "Trinidad and Tobago", 
   "Tunisia", "Turkey", "Turkmenistan", "Tuvalu", "Uganda", "Ukraine", "United Arab Emirates", "United Kingdom", "United States", 
   "Uruguay", "Uzbekistan", "Vanuatu", "Vatican City", "Venezuela", "Vietnam", "Yemen", "Zambia", "Zimbabwe", "Global Presence"
@@ -468,7 +469,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         </div>
         
         <div class="${ styles.formField }">
-          <label for="additionalInformation">Any additional information related to your inquiry?</label>
+          <label for="additionalInformation">Any additional information related to your enquiry?</label>
           <textarea id="additionalInformation" class="${ styles.textareaField }" rows="3">${this.formData.additionalInformation || ''}</textarea>
         </div>
         
@@ -562,9 +563,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           <i class="${ styles.checkmark }">✓</i>
         </div>
         <h3 class="${ styles.thankYouTitle }">Thank You!</h3>
-        <p class="${ styles.thankYouMessage }">${escape(this.properties.thankYouMessage || 'Your inquiry has been submitted successfully. We will contact you soon.')}</p>
+        <p class="${ styles.thankYouMessage }">${escape(this.properties.thankYouMessage || 'Your enquiry has been submitted successfully. We will contact you soon.')}</p>
         <div class="${ styles.formActions }">
-          <button type="button" class="${ styles.button } ${styles.newInquiryButton}" id="newInquiryBtn">Submit Another Inquiry</button>
+          <button type="button" class="${ styles.button } ${styles.newInquiryButton}" id="newInquiryBtn">Submit Another Enquiry</button>
         </div>
       </div>
     `;
@@ -1740,7 +1741,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private saveCurrentInquiryData(): void {
-    console.log('Saving current inquiry data without changing steps');
+    console.log('Saving current enquiry data without changing steps');
     
     // Get product/service description
     const descriptionTextarea = this.domElement.querySelector('#productServiceDescription') as HTMLTextAreaElement;
@@ -1781,7 +1782,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       this.formData.consentConfirmation = consentCheckbox.checked;
     }
     
-    console.log('Current inquiry data saved:', this.formData);
+    console.log('Current enquiry data saved:', this.formData);
   }
 
   /**

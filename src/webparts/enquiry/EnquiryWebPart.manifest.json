@@ -10,12 +10,12 @@
     "groupId": "5c03119e-3074-46fd-976b-c60198311f70",
     "group": { "default": "Forms" },
     "title": { "default": "Multi-Step Inquiry Form" },
-    "description": { "default": "A professional multi-step inquiry form with animations for collecting user information, industry details, and specific inquiry details." },
+    "description": { "default": "A professional multi-step enquiry form with animations for collecting user information, industry details, and specific enquiry details." },
     "officeFabricIconFontName": "FormLibrary",
     "properties": {
       "formTitle": "Inquiry Form",
       "submitButtonText": "Submit",
-      "thankYouMessage": "Your inquiry has been submitted successfully. We will contact you soon."
+      "thankYouMessage": "Your enquiry has been submitted successfully. We will contact you soon."
     }
   }]
 }

@@ -1,6 +1,6 @@
 define([], function() {
   return {
-    "PropertyPaneDescription": "Configure the inquiry form settings",
+    "PropertyPaneDescription": "Configure the enquiry form settings",
     "BasicGroupName": "Form Configuration",
     "DescriptionFieldLabel": "Description Field"
   }
