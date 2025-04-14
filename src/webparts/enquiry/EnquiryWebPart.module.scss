@@ -164,7 +164,7 @@
   }
 
   .fadeIn {
-    animation: fadeIn 0.5s ease-in-out;
+    animation: fadeIn 0.5s ease-in;
   }
 
   @keyframes fadeIn {
@@ -764,6 +764,63 @@
       &:hover {
         text-decoration: underline;
       }
+    }
+  }
+
+  .errorStep {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px;
+  }
+
+  .errorIcon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background-color: #f44336;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin-bottom: 20px;
+  }
+
+  .errorMark {
+    color: #fff;
+    font-size: 48px;
+    font-weight: bold;
+  }
+
+  .errorTitle {
+    font-size: 24px;
+    font-weight: bold;
+    margin-bottom: 10px;
+    color: #f44336;
+  }
+
+  .errorMessage {
+    font-size: 16px;
+    margin-bottom: 20px;
+    color: #333;
+  }
+
+  .errorDetails {
+    font-family: monospace;
+    background-color: #f5f5f5;
+    padding: 10px;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    max-width: 100%;
+    overflow-wrap: break-word;
+  }
+
+  .tryAgainButton {
+    background-color: #f44336;
+    color: white;
+    
+    &:hover {
+      background-color: #d32f2f;
     }
   }
 }
