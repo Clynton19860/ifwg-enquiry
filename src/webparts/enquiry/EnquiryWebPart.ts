@@ -180,7 +180,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           <div class="${ styles.header }">
             <h2 class="${ styles.title }">Regulatory Guidance Unit Enquiry Form</h2>
             <div class="${ styles.introText }">
-              <p>The Regulatory Guidance Unit provides informal, non-binding steers to persons seeking direction and clarity in navigating aspects of the FinTech regulatory landscape. It relies on the expertise of representatives from across participating regulators within the IFWG to ensure that guidance is holistic, inclusive and well considered. The functions of the Regulatory Guidance Unit include the following:</p>
+              <p>The Regulatory Guidance Unit provides informal, non-binding steers to persons seeking direction and clarity in navigating aspects of the FinTech regulatory landscape. It relies on the expertise of representatives from across participating regulators within the IFWG to ensure that guidance is holistic, inclusive and well-considered. The functions of the Regulatory Guidance Unit include the following:</p>
               <ul>
                 <li>To provide innovators with efficient and effective access to regulatory expertise potentially reducing their time needed to resolve regulatory concerns, increasing their speed to market and lowering their legal fees.</li>
                 <li>To impart guidance and insight to entities seeking to operate and innovate in the market.</li>
@@ -458,9 +458,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   private renderInquiryStep(): string {
     return `
       <div class="${ styles.formStep } ${styles.fadeIn}">
-        <h3 class="${ styles.stepTitle }">Section C: Inquiry Details</h3>
+        <h3 class="${ styles.stepTitle }">Section C: Enquiry Details</h3>
         <div class="${ styles.sectionNote }">
-          Please provide additional details about your product/service and specific questions you have
+          Please provide details about your product/service and specific questions you have
         </div>
         
         <div class="${ styles.formField }">
@@ -518,7 +518,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         <div class="${ styles.formField }">
           <div class="${ styles.checkbox }${!this.formData.consentConfirmation && this.validateAttempted ? ' ' + styles.error : ''}">
             <input type="checkbox" id="consentCheckbox" ${this.formData.consentConfirmation ? 'checked' : ''}>
-            <label for="consentCheckbox">I consent to my information being processed in accordance with the <a href="https://www.ifwg.co.za/Pages/Privacy-Policy.aspx" target="_blank">privacy policy</a> <span class="${ styles.required }">*</span></label>
+            <label for="consentCheckbox">I consent to my information being processed in accordance with the <a href="https://www.ifwg.co.za/Pages/Privacy-Policy.aspx" target="_blank">IFWG Privacy Policy</a> <span class="${ styles.required }">*</span></label>
           </div>
           ${!this.formData.consentConfirmation && this.validateAttempted ? `<div class="${styles.errorText}">You must provide consent to submit this form</div>` : ''}
         </div>
@@ -803,6 +803,43 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
             // Re-attach event handlers
             this.setButtonHandlers();
           }
+        });
+      }
+      
+      // Handle regulatory status change
+      const regulatoryStatusYes = this.domElement.querySelector('#regulatoryStatusYes') as HTMLInputElement;
+      const regulatoryStatusNo = this.domElement.querySelector('#regulatoryStatusNo') as HTMLInputElement;
+
+      if (regulatoryStatusYes) {
+        regulatoryStatusYes.addEventListener('change', () => {
+          console.log('Regulatory status changed to Yes');
+          
+          // Save current state
+          this.saveCurrentIndustryData();
+          
+          // Set regulatory status to true
+          this.formData.regulatoryStatus = true;
+          
+          // Re-render to show regulators selection
+          this.render();
+          this.setButtonHandlers();
+        });
+      }
+
+      if (regulatoryStatusNo) {
+        regulatoryStatusNo.addEventListener('change', () => {
+          console.log('Regulatory status changed to No');
+          
+          // Save current state
+          this.saveCurrentIndustryData();
+          
+          // Set regulatory status to false and clear regulators
+          this.formData.regulatoryStatus = false;
+          this.formData.regulators = [];
+          
+          // Re-render to hide regulators selection
+          this.render();
+          this.setButtonHandlers();
         });
       }
     }
