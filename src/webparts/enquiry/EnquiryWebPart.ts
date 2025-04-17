@@ -58,64 +58,56 @@ const REGULATORS = [
 ];
 
 const CATEGORIES = {
-  'banking': [
-    'Digital/Neo-bank',
-    'Business/Corporate Banking',
-    'Retail Banking',
-    'Private Banking',
-    'Investment Banking',
-    'Commercial Banking',
-    'Core Banking Technology',
-    'Other'
+  'Lending': [
+    'Online (alternatives) lenders',
+    'Asset financing',
+    'Alternative scoring',
+    'Lending Market-places',
   ],
-  'payments': [
-    'Payment Institution',
-    'E-money Institution',
-    'Money Transfer',
-    'Acquiring Services',
-    'Card Issuance',
-    'Digital Wallet',
-    'Open Banking Solutions',
-    'Other'
+  'Payments': [
+    'mPOS (acquirers)',
+    'Crypto Assets payment',
+    'Cross-Border payments',
+    'Closed loop Mobile wallets',
+    'Payments aggregation',
+    '3rd party payment providers',
   ],
-  'insurance': [
-    'Life Insurance',
-    'General Insurance',
-    'Health Insurance',
-    'Parametric Insurance',
-    'Insurance Brokering',
-    'Other'
+  'Savings & Deposits': [
+    'Digital community savings',
+    'Savings products',
+    'Layby',
+    'Digital banking (issuers)',
   ],
-  'crypto': [
-    'Exchange',
-    'Wallet Provider',
-    'Stablecoin',
-    'Decentralized Finance (DeFi)',
-    'Crypto Lending/Borrowing',
-    'NFT Marketplace',
-    'Other'
+  'Insurtech': [
+    'Connected insurance',
+    'Peer-to-peer insurance',
+    'Automated risk analysis',
+    'Digital distribution',
+    'Claims management',
   ],
-  'investment': [
-    'Wealth Management',
-    'Robo-advisory',
-    'Crowdfunding',
-    'P2P Lending',
-    'Asset Management',
-    'Other'
+  'Investments': [
+    'Retail trading',
+    'Crypto asset trading',
+    'Alternative exchange',
   ],
-  'credit': [
-    'Lending',
-    'Buy Now Pay Later',
-    'Credit Scoring',
-    'Credit Reference',
-    'Debt Management',
-    'Other'
+  'Financial planning & Advisory': [
+    'Robo advisory',
+    'Personal finance management',
+    'Small business finance management',
   ],
-  'notOperational': [
-    'Pre-launch Product/Service',
-    'Research and Development',
-    'Early-stage Product/Service',
-    'Other'
+  'Capital raising': [
+    'Crowd investing',
+    'Due diligence',
+  ],
+  'B2B Tech providers': [
+    'Aggregators',
+    'Open infrastructure',
+    'RegTech & risk management',
+    'Data applications',
+    'Security & ID',
+    'Process automation',
+    'White label',
+    'White label platforms (solutions)',
   ]
 };
 
@@ -348,13 +340,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           <label for="primaryBusinessAreas">What is the primary area of business in which you currently operate? <span class="${ styles.required }">*</span></label>
           <select id="primaryBusinessAreas" class="${ styles.selectField }${this.formData.primaryBusinessAreas === '' && this.validateAttempted ? ' ' + styles.error : ''}">
             <option value="" ${!this.formData.primaryBusinessAreas ? 'selected' : ''}>Please select</option>
-            <option value="banking" ${this.formData.primaryBusinessAreas === 'banking' ? 'selected' : ''}>Banking</option>
-            <option value="payments" ${this.formData.primaryBusinessAreas === 'payments' ? 'selected' : ''}>Payments</option>
-            <option value="insurance" ${this.formData.primaryBusinessAreas === 'insurance' ? 'selected' : ''}>Insurance</option>
-            <option value="crypto" ${this.formData.primaryBusinessAreas === 'crypto' ? 'selected' : ''}>Crypto</option>
-            <option value="investment" ${this.formData.primaryBusinessAreas === 'investment' ? 'selected' : ''}>Investment</option>
-            <option value="credit" ${this.formData.primaryBusinessAreas === 'credit' ? 'selected' : ''}>Credit</option>
-            <option value="notOperational" ${this.formData.primaryBusinessAreas === 'notOperational' ? 'selected' : ''}>Not operational</option>
+            ${Object.keys(CATEGORIES).map(category => 
+              `<option value="${category}" ${this.formData.primaryBusinessAreas === category ? 'selected' : ''}>${category}</option>`
+            ).join('')}
           </select>
           ${this.formData.primaryBusinessAreas === '' && this.validateAttempted ? `<div class="${styles.errorText}">Please select your primary business area</div>` : ''}
         </div>
@@ -441,15 +429,44 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   
   private renderProductServiceCategoryOptions(): string {
     const businessArea = this.formData.primaryBusinessAreas;
-    if (!businessArea || !CATEGORIES[businessArea]) {
+    
+    // If no business area is selected, return an empty options list
+    if (!businessArea) {
       return '';
     }
     
+    // Get the subcategories for the selected business area
+    // First check if the exact key exists
+    let categories = CATEGORIES[businessArea];
+    
+    // If not found, try case-insensitive search
+    if (!categories) {
+      // Find a key that matches the business area case-insensitively
+      const matchingKey = Object.keys(CATEGORIES).find(
+        key => key.toLowerCase() === businessArea.toLowerCase()
+      );
+      
+      if (matchingKey) {
+        categories = CATEGORIES[matchingKey];
+      }
+    }
+    
+    // If still no categories found, return empty
+    if (!categories || !Array.isArray(categories)) {
+      console.log(`No categories found for business area: ${businessArea}`);
+      return '';
+    }
+    
+    // Generate options for the subcategories
     let options = '';
-    const categories = CATEGORIES[businessArea];
     for (let i = 0; i < categories.length; i++) {
       const category = categories[i];
       options += `<option value="${category}" ${this.formData.productServiceCategory === category ? 'selected' : ''}>${category}</option>`;
+    }
+    
+    // Add an "Other" option if not already in the list
+    if (categories.indexOf('Other') === -1) {
+      options += `<option value="Other" ${this.formData.productServiceCategory === 'Other' ? 'selected' : ''}>Other</option>`;
     }
     
     return options;
@@ -781,70 +798,68 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           
           // Re-attach event handlers
           this.setButtonHandlers();
-        });
-      }
-      
-      // Handle product/service category change
-      const productServiceCategorySelect = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
-      if (productServiceCategorySelect) {
-        productServiceCategorySelect.addEventListener('change', () => {
-          console.log('Product service category changed to:', productServiceCategorySelect.value);
           
-          // Save current industry data
-          this.saveCurrentIndustryData();
-          
-          // Update product service category
-          this.formData.productServiceCategory = productServiceCategorySelect.value;
-          
-          // Re-render if "Other" is selected to show the additional field
-          if (productServiceCategorySelect.value === 'Other') {
-            this.render();
-            
-            // Re-attach event handlers
-            this.setButtonHandlers();
+          // If the primary area has changed, ensure product service category dropdown is updated
+          const productServiceCategorySelect = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
+          if (productServiceCategorySelect) {
+            console.log('Setting up product service category change handler');
+            productServiceCategorySelect.addEventListener('change', () => {
+              // Save current data whenever the product category changes
+              this.saveCurrentIndustryData();
+            });
           }
         });
-      }
-      
-      // Handle regulatory status change
-      const regulatoryStatusYes = this.domElement.querySelector('#regulatoryStatusYes') as HTMLInputElement;
-      const regulatoryStatusNo = this.domElement.querySelector('#regulatoryStatusNo') as HTMLInputElement;
+        
+        // Also set up the product service category change handler initially
+        const productServiceCategorySelect = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
+        if (productServiceCategorySelect) {
+          console.log('Setting up initial product service category change handler');
+          productServiceCategorySelect.addEventListener('change', () => {
+            // Save current data whenever the product category changes
+            this.saveCurrentIndustryData();
+          });
+        }
+        
+        // Handle regulatory status change
+        const regulatoryStatusYes = this.domElement.querySelector('#regulatoryStatusYes') as HTMLInputElement;
+        const regulatoryStatusNo = this.domElement.querySelector('#regulatoryStatusNo') as HTMLInputElement;
 
-      if (regulatoryStatusYes) {
-        regulatoryStatusYes.addEventListener('change', () => {
-          console.log('Regulatory status changed to Yes');
-          
-          // Save current state
-          this.saveCurrentIndustryData();
-          
-          // Set regulatory status to true
-          this.formData.regulatoryStatus = true;
-          
-          // Re-render to show regulators selection
-          this.render();
-          this.setButtonHandlers();
-        });
-      }
+        if (regulatoryStatusYes) {
+          regulatoryStatusYes.addEventListener('change', () => {
+            console.log('Regulatory status changed to Yes');
+            
+            // Save current state
+            this.saveCurrentIndustryData();
+            
+            // Set regulatory status to true
+            this.formData.regulatoryStatus = true;
+            
+            // Re-render to show regulators selection
+            this.render();
+            this.setButtonHandlers();
+          });
+        }
 
-      if (regulatoryStatusNo) {
-        regulatoryStatusNo.addEventListener('change', () => {
-          console.log('Regulatory status changed to No');
-          
-          // Save current state
-          this.saveCurrentIndustryData();
-          
-          // Set regulatory status to false and clear regulators
-          this.formData.regulatoryStatus = false;
-          this.formData.regulators = [];
-          
-          // Re-render to hide regulators selection
-          this.render();
-          this.setButtonHandlers();
-        });
+        if (regulatoryStatusNo) {
+          regulatoryStatusNo.addEventListener('change', () => {
+            console.log('Regulatory status changed to No');
+            
+            // Save current state
+            this.saveCurrentIndustryData();
+            
+            // Set regulatory status to false and clear regulators
+            this.formData.regulatoryStatus = false;
+            this.formData.regulators = [];
+            
+            // Re-render to hide regulators selection
+            this.render();
+            this.setButtonHandlers();
+          });
+        }
       }
     }
     
-    // Setup remove buttons
+    // Setup remove buttons for questions and files
     this.setupRemoveQuestionButtons();
     this.setupRemoveFileButtons();
   }
