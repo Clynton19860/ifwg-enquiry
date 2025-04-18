@@ -1499,6 +1499,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     console.log('Clearing authentication context');
     
     try {
+      // Explicitly delete the WSS_KeepSessionAuthenticated cookie
+      document.cookie = "WSS_KeepSessionAuthenticated=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;";
+      
       // Prevent redirects that might trigger auth prompts
       window.onbeforeunload = function() {
         return "Processing your submission...";
@@ -2333,7 +2336,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           
           // Set credentials
           const credentials = this.getServiceAccountCredentials();
-          xhr.setRequestHeader('Authorization', 'Basic ' + credentials);
+         xhr.setRequestHeader('Authorization', 'Basic ' + credentials);
           
           // Set credentials handling - critical to avoid prompts
           xhr.withCredentials = false;
@@ -2398,9 +2401,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         xhr.open('POST', digestUrl, true);
         
         // Set credentials
-        const credentials = this.getServiceAccountCredentials();
-        xhr.setRequestHeader('Authorization', 'Basic ' + credentials);
-        xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+       const credentials = this.getServiceAccountCredentials();
+       xhr.setRequestHeader('Authorization', 'Basic ' + credentials);
+       xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
         
         // Set withCredentials for CORS requests
         xhr.withCredentials = true;
