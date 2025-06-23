@@ -111,15 +111,7 @@ const CATEGORIES = {
   ]
 };
 
-// Add service account credentials 
-// WARNING: Do NOT expose credentials in client-side code in production!
-// This is a simplified example and in a real production environment, 
-// you should use a server-side API or Azure Function to handle authentication
-const SERVICE_ACCOUNT = {
-  username: 'svc_IFWGEnquiry',
-  password: 'sQDrLej^[7yVSR`TxZ', // Fill this in with the actual password before deployment
-  domain: 'FSCA'
-};
+// Service account credentials removed - now using SharePoint REST API with proper authentication
 
 export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPartProps> {
 
@@ -584,6 +576,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private renderThankYouStep(): string {
+    const fileMessage = this.formData.files && this.formData.files.length > 0 ? 
+      `<p class="${ styles.thankYouMessage }">File information for ${this.formData.files.length} file(s) has been captured with your enquiry.</p>` : '';
+    
     return `
       <div class="${ styles.formStep } ${styles.fadeIn} ${styles.thankYouStep}">
         <div class="${ styles.thankYouIcon }">
@@ -591,6 +586,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         </div>
         <h3 class="${ styles.thankYouTitle }">Thank You!</h3>
         <p class="${ styles.thankYouMessage }">${escape(this.properties.thankYouMessage || 'Your enquiry has been submitted successfully. We will contact you soon.')}</p>
+        ${fileMessage}
         <div class="${ styles.formActions }">
           <button type="button" class="${ styles.button } ${styles.newInquiryButton}" id="newInquiryBtn">Submit Another Enquiry</button>
         </div>
@@ -859,6 +855,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       }
     }
     
+    // Setup email validation if in step 1
+    if (this.currentStep === 1) {
+      this.setupEmailValidation();
+    }
+    
     // Setup remove buttons for questions and files
     this.setupRemoveQuestionButtons();
     this.setupRemoveFileButtons();
@@ -939,6 +940,61 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     this.setupRemoveCountryButtons();
     this.updateSelectedCountriesDisplay();
+  }
+
+  private setupEmailValidation(): void {
+    console.log('Setting up email validation');
+    const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
+    
+    if (emailInput) {
+      // Create error message container if it doesn't exist
+      let errorContainer = this.domElement.querySelector('#emailErrorContainer') as HTMLElement;
+      if (!errorContainer) {
+        errorContainer = document.createElement('div');
+        errorContainer.id = 'emailErrorContainer';
+        errorContainer.className = styles.errorText;
+        errorContainer.style.display = 'none';
+        emailInput.parentNode.insertBefore(errorContainer, emailInput.nextSibling);
+      }
+      
+      // Add event listeners for real-time validation
+      emailInput.addEventListener('blur', () => {
+        this.validateEmailField();
+      });
+      
+      emailInput.addEventListener('input', () => {
+        // Clear error on input to provide immediate feedback
+        const errorContainer = this.domElement.querySelector('#emailErrorContainer') as HTMLElement;
+        if (errorContainer) {
+          errorContainer.style.display = 'none';
+          emailInput.classList.remove(styles.error);
+        }
+      });
+    }
+  }
+
+  private validateEmailField(): void {
+    const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
+    const errorContainer = this.domElement.querySelector('#emailErrorContainer') as HTMLElement;
+    
+    if (emailInput && errorContainer) {
+      const emailValue = emailInput.value.trim();
+      
+      if (emailValue === '') {
+        // Don't show error for empty field during real-time validation
+        errorContainer.style.display = 'none';
+        emailInput.classList.remove(styles.error);
+      } else if (!this.isValidEmail(emailValue)) {
+        // Show error for invalid email format
+        errorContainer.textContent = 'Please enter a valid email address';
+        errorContainer.style.display = 'block';
+        emailInput.classList.add(styles.error);
+      } else {
+        // Valid email - clear any errors
+        errorContainer.style.display = 'none';
+        emailInput.classList.remove(styles.error);
+      }
+    }
   }
 
   private setupRemoveCountryButtons(): void {
@@ -1408,481 +1464,327 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Files are handled by the file upload event handler
   }
 
-  private submitForm(): void {
+  private async submitForm(): Promise<void> {
+    console.log('🚀 Starting HYBRID form submission process...');
+    console.log('📋 List submission: REST API (anonymous)');
+    console.log('📁 File uploads: Service Account (.ashx handler)');
+    
     // Show loading state
-    console.log('Starting form submission process...');
     const submitButton = this.domElement.querySelector('.submit-btn') as HTMLButtonElement;
     if (submitButton) {
       submitButton.disabled = true;
       submitButton.innerHTML = 'Submitting...';
     }
     
-    console.log('Form data being submitted:', JSON.stringify(this.formData, null, 2));
-    
-    // Make sure we have at least one question
-    if (!this.formData.questions || this.formData.questions.length === 0) {
-      this.formData.questions = [''];
-    }
-    
-    // Check if we have files to upload
-    const hasFiles = this.formData.files && this.formData.files.length > 0;
-    console.log(`Files to upload: ${hasFiles ? this.formData.files.length : 0}`);
-    
-    // Use direct submission approach to avoid authentication issues
-    console.log('Using XML submission with service account to avoid authentication dialogs');
-    
-    // Submit form data to SharePoint list using XML and service account
-    this.createEnquiryDetailsListItem()
-      .then((response) => {
-        console.log('Enquiry Details submission successful via XML format:', response);
-        
-        // Upload files if there are any
-        if (hasFiles) {
-          console.log('Starting file upload process for', this.formData.files.length, 'files');
-          return this.uploadFiles(this.formData.files);
-        }
-        console.log('No files to upload');
-        return Promise.resolve();
-      })
-      .then(() => {
-        console.log('Form submission completed successfully, showing thank you step');
-        // Show thank you step
-        this.currentStep = 4;
-        this.render();
-        
-        // Clear authentication context to prevent future prompts
-        this.clearAuthenticationContext();
-        
-        // Set a temporary blocker on navigation to prevent auth prompts
-        window.onbeforeunload = () => {
-          return "Your submission has been received. Are you sure you want to leave?";
-        };
-        
-        // Remove the blocker after a few seconds
-        setTimeout(() => {
-          window.onbeforeunload = null;
-        }, 3000);
-      })
-      .catch((error) => {
-        console.error('Error submitting form:', error);
-        
-        // Log error details
-        if (error.message) {
-          console.error('Error message:', error.message);
-        }
-        if (error.stack) {
-          console.error('Error stack:', error.stack);
-        }
-        
-        // Re-enable submit button
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.innerHTML = this.properties.submitButtonText || 'Submit';
-        }
-        
-        // Show error message to the user
-        const errorContainer = this.domElement.querySelector('.error-message');
-        if (errorContainer) {
-          errorContainer.innerHTML = 'There was an error submitting your form. Please try again later.';
-          errorContainer.className = 'error-message visible';
-        }
-        
-        // Clear authentication context even on error
-        this.clearAuthenticationContext();
-      });
-  }
-  
-  /**
-   * Clears authentication context to prevent lingering auth prompts
-   */
-  private clearAuthenticationContext(): void {
     try {
-      console.log('Clearing authentication context...');
+      // Generate enquiry reference
+      const enquiryReference = this.generateEnquiryReference();
+      console.log('Generated enquiry reference:', enquiryReference);
       
-      // Check if we've already cleared auth in the last 30 minutes
-      const lastCleared = localStorage.getItem('authCleared');
-      if (lastCleared) {
-        const timeSince = new Date().getTime() - new Date(lastCleared).getTime();
-        if (timeSince < 30 * 60 * 1000) { // 30 minutes
-          console.log('Auth cleared recently, skipping');
-          return;
+      // Step 1: Upload files using service account .ashx handler (if files exist)
+      let fileUrls: string[] = [];
+      let fileCount = 0;
+      
+      if (this.formData.files && this.formData.files.length > 0) {
+        console.log(`📁 Uploading ${this.formData.files.length} files using service account...`);
+        
+        try {
+          const uploadResult = await this.uploadFilesWithServiceAccount(enquiryReference);
+          fileUrls = uploadResult.uploadedFiles || [];
+          fileCount = uploadResult.fileCount || 0;
+          console.log(`✅ Files uploaded successfully: ${fileCount} files`);
+        } catch (uploadError) {
+          console.warn('⚠️ File upload failed, continuing with form submission:', uploadError);
+          // Continue with form submission even if file upload fails
+          fileUrls = [];
+          fileCount = 0;
         }
+      } else {
+        console.log('📁 No files to upload');
       }
       
-      // Make a direct request to the web API to clear any auth context
-      const url = `${this.context.pageContext.web.absoluteUrl}/_api/web`;
+      // Step 2: Prepare data for SharePoint list (with actual file URLs if uploaded)
+      const listItemData = {
+        __metadata: { type: 'SP.Data.Enquiry_x0020_DetailsListItem' },
+        Title: enquiryReference,
+        FullName: this.formData.fullName || '',
+        OrganisationName: this.formData.organisationName || '',
+        ContactNumber: this.formData.contactNumber || '',
+        EmailAddress: this.formData.emailAddress || '',
+        WebsiteAddress: this.formData.websiteAddress || '',
+        OperationLocation: this.formData.operationLocation || '',
+        CountriesOfOperation: Array.isArray(this.formData.countriesOfOperation) ? this.formData.countriesOfOperation.join('; ') : '',
+        OperationLength: this.formData.operationLength || '',
+        PrimaryBusinessAreas: this.formData.primaryBusinessAreas || '',
+        ProductServiceCategory: this.formData.productServiceCategory || '',
+        OtherProductServiceCategory: this.formData.otherProductServiceCategory || '',
+        OperationalStatus: this.formData.operationalStatus ? 'Yes' : 'No',
+        RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
+        Regulators: Array.isArray(this.formData.regulators) ? this.formData.regulators.join('; ') : '',
+        OtherRegulator: this.formData.otherRegulator || '',
+        ProductServiceDescription: this.formData.productServiceDescription || '',
+        Questions: Array.isArray(this.formData.questions) ? this.formData.questions.filter(q => q && q.trim() !== '').join('\n\n') : '',
+        AdditionalInformation: this.formData.additionalInformation || '',
+        FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
+        ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
+        SubmissionDate: new Date().toISOString(),
+        // Use actual file URLs if uploaded, otherwise log file information
+        FileAttachments: fileUrls.length > 0 ? 'Yes' : (this.formData.files && this.formData.files.length > 0 ? 
+          this.formData.files.map(f => `${f.name} (${Math.round(f.size/1024)}KB, ${f.type || 'unknown type'})`).join('; ') : 'No'),
+        NumberOfAttachements: fileCount > 0 ? fileCount.toString() : (this.formData.files ? this.formData.files.length.toString() : '0')
+      };
       
-      this.context.spHttpClient.get(url, SPHttpClient.configurations.v1)
-        .then((response: SPHttpClientResponse) => {
-          console.log('Auth context request completed with status:', response.status);
-        })
-        .catch((error) => {
-          console.error('Error in auth context request:', error);
-        });
+      console.log('📋 Prepared list item data:', listItemData);
       
-      // Mark as completed in localStorage
-      localStorage.setItem('authCleared', new Date().toISOString());
-    } catch (error) {
-      console.error('Error clearing authentication context:', error);
-    }
-  }
-  
-  /**
-   * Closes the form and resets state to prevent lingering connections
-   * This should be called when navigating away or closing the form
-   */
-  public onDispose(): void {
-    super.onDispose();
-    
-    // Clean up any event listeners
-    window.onbeforeunload = null;
-    
-    // Clear auth context when leaving the page
-    this.clearAuthenticationContext();
-  }
-
-  /**
-   * Creates a list item in the Enquiry Details list with all form data combined
-   */
-  private createEnquiryDetailsListItem(): Promise<SPHttpClientResponse | any> {
-    console.log('Creating list item in Enquiry Details list using SPHttpClient');
-    
-    // Ensure all values are initialized and safe
-    const safeValue = (value: any): any => {
-      if (value === undefined || value === null) {
-        return '';
+      // Step 3: Get form digest for REST API authentication
+      console.log('🔐 Getting form digest for list submission...');
+      const digestResponse = await fetch('/_api/contextinfo', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+      });
+      
+      if (!digestResponse.ok) {
+        throw new Error(`Failed to get form digest: ${digestResponse.status} ${digestResponse.statusText}`);
       }
-      return value;
-    };
-    
-    // Ensure arrays exist before joining
-    const questionsArray = Array.isArray(this.formData.questions) ? this.formData.questions.filter(q => q && q.trim() !== '') : [];
-    const countriesArray = Array.isArray(this.formData.countriesOfOperation) ? this.formData.countriesOfOperation : [];
-    const regulatorsArray = Array.isArray(this.formData.regulators) ? this.formData.regulators : [];
-    
-    // Check if we have any files to upload
-    const hasFiles = this.formData.files && this.formData.files.length > 0;
-    console.log(`Has files to upload: ${hasFiles ? 'Yes' : 'No'}`);
-    
-    // Prepare the item data using REST API format
-    const itemData = {
-      __metadata: { type: 'SP.Data.Enquiry_x0020_DetailsListItem' },
-      Title: `Enquiry from ${safeValue(this.formData.fullName)}`,
-      FullName: safeValue(this.formData.fullName),
-      OrganisationName: safeValue(this.formData.organisationName),
-      ContactNumber: safeValue(this.formData.contactNumber),
-      EmailAddress: safeValue(this.formData.emailAddress),
-      WebsiteAddress: safeValue(this.formData.websiteAddress),
-      OperationLocation: safeValue(this.formData.operationLocation),
-      CountriesOfOperation: countriesArray.join(', '),
-      OperationLength: safeValue(this.formData.operationLength),
-      PrimaryBusinessAreas: safeValue(this.formData.primaryBusinessAreas),
-      ProductServiceCategory: safeValue(this.formData.productServiceCategory),
-      OtherProductServiceCategory: safeValue(this.formData.otherProductServiceCategory),
-      OperationalStatus: this.formData.operationalStatus ? 'Yes' : 'No',
-      RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
-      Regulators: regulatorsArray.join(', '),
-      OtherRegulator: safeValue(this.formData.otherRegulator),
-      ProductServiceDescription: safeValue(this.formData.productServiceDescription),
-      Questions: questionsArray.join('\n\n'),
-      AdditionalInformation: safeValue(this.formData.additionalInformation),
-      FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
-      ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
-      FileAttachments: hasFiles ? 'Yes' : 'No',
-      NumberOfAttachments: this.formData.files ? this.formData.files.length : 0,
-      SubmissionDate: new Date().toISOString()
-    };
-    
-    // Build the URL for the list
-    const listUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/lists/getbytitle('Enquiry Details')/items`;
-    console.log(`Using REST API URL: ${listUrl}`);
-    
-    // Get the request digest from the page
-    const requestDigest = (document.getElementById("__REQUESTDIGEST") as HTMLInputElement).value;
-    console.log('Got request digest from page element');
-    
-    // Use SPHttpClient to create the list item
-    return this.context.spHttpClient.post(
-      listUrl,
-      SPHttpClient.configurations.v1,
-      {
+      
+      const digestData = await digestResponse.json();
+      const formDigest = digestData.FormDigestValue;
+      console.log('✅ Form digest obtained successfully');
+      
+      // Step 4: Submit to SharePoint list using REST API
+      console.log('📋 Submitting to SharePoint list using REST API...');
+      const listName = this.properties.submissionListName || 'Enquiry Details';
+      const listResponse = await fetch(`/_api/web/lists/getbytitle('${listName}')/items`, {
+        method: 'POST',
         headers: {
           'Accept': 'application/json;odata=verbose',
           'Content-Type': 'application/json;odata=verbose',
+          'X-RequestDigest': formDigest
         },
-        body: JSON.stringify(itemData)
-      }
-    )
-    .then((response: SPHttpClientResponse) => {
-      if (response.ok) {
-        console.log('List item created successfully with REST API');
-        return response.json();
-      } else {
-        console.error('Error creating list item with REST API:', response.status, response.statusText);
-        throw new Error('Error creating list item: ' + response.statusText);
-      }
-    })
-    .catch(error => {
-      console.error('Error in list item creation:', error);
-      // Return a mock response to allow form submission to complete
-      return { 
-        status: 200, 
-        json: () => Promise.resolve({ d: { ID: 1 } }) 
-      };
-    });
-  }
-
-  /**
-   * Uploads files to SharePoint document library with fallbacks
-   */
-  private uploadFiles(files: File[]): Promise<void> {
-    console.log(`Starting upload process for ${files.length} files`);
-    
-    if (!files || files.length === 0) {
-      console.log('No files to upload');
-      return Promise.resolve();
-    }
-    
-    // Generate folder name based on user's name and timestamp
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const folderName = `${this.formData.fullName || 'Anonymous'}_${timestamp}`;
-    
-    console.log(`Generated folder name: ${folderName}`);
-    
-    // Upload each file, one at a time to avoid overwhelming the server
-    // Skip folder creation entirely and just use prefixed filenames
-    console.log(`Uploading ${files.length} files with prefix ${folderName}`);
-    
-    return files.reduce((previous, file) => {
-      return previous.then(() => {
-        console.log(`Starting upload for file: ${file.name}`);
-        return this.uploadFileWithServiceAccount(file, folderName)
-          .then(() => {
-            console.log(`Successfully uploaded file: ${file.name}`);
-            return Promise.resolve();
-          })
-          .catch(error => {
-            console.error(`Error uploading file ${file.name}:`, error);
-            // Continue with other files even if this one fails
-            return Promise.resolve();
-          });
+        body: JSON.stringify(listItemData),
+        credentials: 'same-origin'
       });
-    }, Promise.resolve());
-  }
-
-  /**
-   * Encodes service account credentials for Basic Authentication
-   */
-  private getServiceAccountCredentials(): string {
-    const username = `${SERVICE_ACCOUNT.domain}\\${SERVICE_ACCOUNT.username}`;
-    const password = SERVICE_ACCOUNT.password;
-    return this.encodeCredentials(username, password);
-  }
-
-  /**
-   * Encodes credentials to Base64 for Basic Authentication
-   */
-  private encodeCredentials(username: string, password: string): string {
-    const toEncode = username + ':' + password;
-    // For IE compatibility in TypeScript 2.4.2
-    if (typeof window !== 'undefined' && window.btoa) {
-      return window.btoa(toEncode);
-    } else {
-      // Fallback if btoa is not available
-      const keyStr = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=';
-      let output = '';
-      let chr1, chr2, chr3, enc1, enc2, enc3, enc4;
-      let i = 0;
-
-      do {
-        chr1 = toEncode.charCodeAt(i++);
-        chr2 = toEncode.charCodeAt(i++);
-        chr3 = toEncode.charCodeAt(i++);
-
-        enc1 = chr1 >> 2;
-        enc2 = ((chr1 & 3) << 4) | (chr2 >> 4);
-        enc3 = ((chr2 & 15) << 2) | (chr3 >> 6);
-        enc4 = chr3 & 63;
-
-        if (isNaN(chr2)) {
-          enc3 = enc4 = 64;
-        } else if (isNaN(chr3)) {
-          enc4 = 64;
+      
+      if (!listResponse.ok) {
+        const errorText = await listResponse.text();
+        console.error('❌ List submission failed:', errorText);
+        
+        if (listResponse.status === 404 || errorText.includes('List') || errorText.includes('not found')) {
+          throw new Error(`SharePoint list '${listName}' not found. Please ensure the list exists and has the correct name.`);
         }
-
-        output = output +
-          keyStr.charAt(enc1) +
-          keyStr.charAt(enc2) +
-          keyStr.charAt(enc3) +
-          keyStr.charAt(enc4);
-      } while (i < toEncode.length);
-
-      return output;
+        
+        throw new Error(`Failed to submit to SharePoint list: ${listResponse.status} ${listResponse.statusText}`);
+      }
+      
+      const listResult = await listResponse.json();
+      console.log('✅ List submission successful:', listResult);
+      
+      console.log('🎉 HYBRID form submission completed successfully!');
+      
+      // Show success message
+      const fileMessage = fileCount > 0 ? 
+        ` ${fileCount} file(s) have been uploaded successfully to SharePoint.` : 
+        (this.formData.files && this.formData.files.length > 0 ? 
+          ` File information for ${this.formData.files.length} file(s) has been captured.` : '');
+      this.showSuccessMessage(`Enquiry submitted successfully! Reference: ${enquiryReference}.${fileMessage}`);
+      
+      // Show thank you step
+      this.currentStep = 4;
+      this.render();
+      
+      // Clear sensitive form data but keep thank you step visible
+      this.clearFormDataButKeepThankYou();
+      
+    } catch (error) {
+      console.error('❌ Error in hybrid form submission:', error);
+      
+      // Re-enable submit button
+      if (submitButton) {
+        submitButton.disabled = false;
+        submitButton.innerHTML = this.properties.submitButtonText || 'Submit';
+      }
+      
+      // Show error message to the user
+      this.showErrorMessage(`Submission failed: ${error.message || 'Please try again later.'}`);
     }
   }
 
   /**
-   * Gets the Form Digest value using service account
+   * Uploads files to SharePoint document library
    */
-  private getFormDigestValueWithServiceAccount(): Promise<string> {
-    console.log('Getting form digest value with service account');
-    
-    const url = 'https://www.ifwg.co.za/_api/contextinfo';
-    return this.context.spHttpClient.post(url, SPHttpClient.configurations.v1, {
+  private async uploadFilesToSharePoint(enquiryReference: string, formDigest: string): Promise<void> {
+    try {
+      const libraryName = this.properties.documentLibraryName || 'EnquiryFormDocuments';
+      
+      for (let i = 0; i < this.formData.files.length; i++) {
+        const file = this.formData.files[i];
+        const fileName = `${enquiryReference}_${i + 1}_${file.name}`;
+        
+        console.log(`Uploading file ${i + 1}/${this.formData.files.length}: ${fileName}`);
+        
+        // Convert file to array buffer
+        const fileBuffer = await file.arrayBuffer();
+        
+        // Upload file to SharePoint
+        const uploadResponse = await fetch(`/_api/web/lists/getbytitle('${libraryName}')/RootFolder/Files/Add(url='${fileName}',overwrite=true)`, {
+          method: 'POST',
       headers: {
-        'Accept': 'application/json;odata=verbose'
-      }
-    })
-    .then((response: SPHttpClientResponse) => {
-      if (response.ok) {
-        return response.json();
-      } else {
-        console.error('Failed to get Form Digest:', response.status, response.statusText);
-        // Fallback to a dummy digest
-        return Promise.resolve({ d: { GetContextWebInformation: { FormDigestValue: '0x1234567890ABCDEF' } } });
-      }
-    })
-    .then((jsonResponse) => {
-      const formDigestValue = jsonResponse.d.GetContextWebInformation.FormDigestValue;
-      console.log('Form Digest obtained successfully');
-      return formDigestValue;
-    })
-    .catch((error) => {
-      console.error('Error getting Form Digest:', error);
-      // Fallback to a dummy digest (not secure, but might work in some environments)
-      return '0x1234567890ABCDEF';
-    });
-  }
-
-  /**
-   * Creates a folder in SharePoint using service account and XML
-   */
-  private createFolderWithServiceAccount(folderName: string): Promise<any> {
-    console.log(`Creating folder ${folderName}`);
-    
-    // Get the request digest from the page
-    const requestDigest = (document.getElementById("__REQUESTDIGEST") as HTMLInputElement).value;
-    
-    // Try using the modern REST API
-    const folderUrl = `${this.context.pageContext.web.serverRelativeUrl}/EnquiryFormDocuments/${folderName}`;
-    const restUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/folders`;
-    
-    const restBody = JSON.stringify({
-      '__metadata': { 'type': 'SP.Folder' },
-      'ServerRelativeUrl': folderUrl
-    });
-    
-    return this.context.spHttpClient.post(
-      restUrl,
-      SPHttpClient.configurations.v1,
-      {
-        headers: {
-          'Accept': 'application/json;odata=verbose',
-          'Content-type': 'application/json;odata=verbose',
-          'X-RequestDigest': requestDigest
-        },
-        body: restBody
-      }
-    )
-    .then(response => {
-      if (response.ok) {
-        console.log(`Folder ${folderName} created successfully`);
-        return response.json();
-      }
-      throw new Error('REST API folder creation failed');
-    })
-    .catch(restError => {
-      console.log('REST API folder creation failed, falling back to direct folder creation', restError);
-      
-      // Try direct folder creation as a fallback
-      const emergencyUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/GetFolderByServerRelativeUrl('EnquiryFormDocuments')/folders/add(url='${folderName}')`;
-      
-      return this.context.spHttpClient.post(
-        emergencyUrl,
-        SPHttpClient.configurations.v1,
-        {
-          headers: {
-            'Accept': 'application/json;odata=verbose',
-            'Content-type': 'application/json;odata=verbose',
-            'X-RequestDigest': requestDigest
+        'Accept': 'application/json;odata=verbose',
+            'X-RequestDigest': formDigest,
+            'Content-Length': fileBuffer.byteLength.toString()
           },
-          body: JSON.stringify({})
+          body: fileBuffer,
+          credentials: 'same-origin'
+        });
+        
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          console.error(`File upload failed for ${fileName}:`, errorText);
+          
+          if (uploadResponse.status === 404) {
+            throw new Error(`Document library '${libraryName}' not found. Please ensure the library exists.`);
+          }
+          
+          throw new Error(`Failed to upload file ${fileName}: ${uploadResponse.status} ${uploadResponse.statusText}`);
         }
-      )
-      .then(response => {
-        if (response.ok) {
-          console.log(`Folder ${folderName} created successfully with fallback method`);
-          return response.json();
-        }
-        console.log('All folder creation methods failed, will attempt to upload without folder');
-        return Promise.resolve(); // Continue even if folder creation failed
-      })
-      .catch(finalError => {
-        console.log('All folder creation methods failed, will attempt to upload without folder');
-        return Promise.resolve(); // Continue even if folder creation failed
-      });
-    });
+        
+        const uploadResult = await uploadResponse.json();
+        console.log(`File uploaded successfully: ${fileName}`, uploadResult);
+      }
+      
+      console.log('All files uploaded successfully');
+      
+    } catch (error) {
+      console.error('Error uploading files:', error);
+      // Don't throw here - we want the form submission to succeed even if file upload fails
+      // Just log the error and continue
+      console.warn('File upload failed, but form submission will continue');
+    }
   }
 
   /**
-   * Uploads a file to SharePoint using service account and XML
+   * Uploads files using the service account .ashx handler (HYBRID APPROACH)
    */
-  private uploadFileWithServiceAccount(file: File, folderName: string): Promise<any> {
-    console.log(`Uploading file ${file.name} to folder ${folderName}`);
+  private async uploadFilesWithServiceAccount(enquiryReference: string): Promise<{uploadedFiles: string[], fileCount: number}> {
+    console.log('🚀 Uploading files using service account handler...');
     
-    return new Promise<any>((resolve, reject) => {
-      // Skip large files and just record them
-      if (file.size > 10 * 1024 * 1024) { // 10MB limit
-        console.log(`File ${file.name} exceeds 10MB, skipping actual upload but recording submission`);
-        // Consider it successful but note that it wasn't actually uploaded
-        return resolve(`File ${file.name} was too large (${Math.round(file.size/1024/1024)}MB) to upload automatically.`);
-      }
-      
-      // Use the direct REST API approach for cleaner file upload
-      const uploadFile = () => {
-        const reader = new FileReader();
-        
-        reader.onload = (e) => {
-          const target = e.target as FileReader;
-          const arrayBuffer = target.result as ArrayBuffer;
-          
-          // Try direct upload to document library root with prefixed filename
-          const rootFileName = `${folderName}_${file.name}`;
-          console.log(`Trying direct upload for file: ${rootFileName}`);
-          
-          const uploadUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/GetFolderByServerRelativeUrl('EnquiryFormDocuments')/Files/add(url='${encodeURIComponent(rootFileName)}',overwrite=true)`;
-          
-          this.makeApiCallWithSPHttpClient(
-            uploadUrl,
-            'POST',
-            {
-              'Content-Type': 'application/octet-stream',
-              'Accept': 'application/json;odata=verbose'
-            },
-            arrayBuffer
-          ).then(() => {
-            console.log(`File ${file.name} uploaded successfully`);
-            resolve(`File ${file.name} uploaded successfully`);
-          }).catch((uploadError) => {
-            console.error(`Error uploading file ${file.name}:`, uploadError);
-            // Still resolve to continue with the form submission
-            resolve(`Error uploading ${file.name}, but form submission recorded`);
-          });
-        };
-        
-        reader.onerror = () => {
-          console.error(`Error reading file ${file.name}`);
-          // Still resolve to continue with the form submission
-          resolve(`Error reading ${file.name}, but form submission recorded`);
-        };
-        
-        reader.readAsArrayBuffer(file);
-      };
-      
-      // Execute upload
-      uploadFile();
+    // Create FormData for file upload
+    const formData = new FormData();
+    formData.append('enquiryReference', enquiryReference);
+    formData.append('fileUploadOnly', 'true'); // Flag to indicate file-only mode
+    
+    // Add all files to the form data
+    for (let i = 0; i < this.formData.files.length; i++) {
+      const file = this.formData.files[i];
+      formData.append(`file_${i}`, file, file.name);
+      console.log(`Added file ${i + 1}: ${file.name} (${Math.round(file.size/1024)}KB)`);
+    }
+    
+    // Upload files using the existing .ashx handler in file-only mode
+    const uploadResponse = await fetch('/EnquirySubmissionHandler.ashx', {
+      method: 'POST',
+      body: formData,
+      credentials: 'same-origin'
     });
+    
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text();
+      console.error('❌ Service account file upload failed:', errorText);
+      throw new Error(`File upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
+    }
+    
+    const uploadResult = await uploadResponse.json();
+    
+    if (!uploadResult.success) {
+      throw new Error(uploadResult.message || 'File upload failed');
+    }
+    
+    console.log('✅ Service account file upload successful:', uploadResult);
+    
+    return {
+      uploadedFiles: uploadResult.uploadedFiles || [],
+      fileCount: uploadResult.fileCount || 0
+    };
   }
+
+  /**
+   * Generates a unique enquiry reference
+   */
+  private generateEnquiryReference(): string {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = ('0' + (now.getMonth() + 1)).slice(-2);
+    const day = ('0' + now.getDate()).slice(-2);
+    const hours = ('0' + now.getHours()).slice(-2);
+    const minutes = ('0' + now.getMinutes()).slice(-2);
+    const seconds = ('0' + now.getSeconds()).slice(-2);
+    
+    return `ENQ-${year}${month}${day}-${hours}${minutes}${seconds}`;
+  }
+
+  /**
+   * Shows an error message to the user
+   */
+  private showErrorMessage(message: string): void {
+    let errorContainer = this.domElement.querySelector('.error-message') as HTMLElement;
+    
+    if (!errorContainer) {
+      // Create error container if it doesn't exist
+      errorContainer = document.createElement('div');
+      errorContainer.className = 'error-message';
+      
+      // Insert at the top of the form
+      const formContainer = this.domElement.querySelector('.enquiry-form');
+      if (formContainer) {
+        formContainer.insertBefore(errorContainer, formContainer.firstChild);
+      }
+    }
+    
+    errorContainer.innerHTML = `
+      <div style="background-color: #f8d7da; color: #721c24; padding: 12px; border: 1px solid #f5c6cb; border-radius: 4px; margin-bottom: 20px;">
+        <strong>Error:</strong> ${message}
+      </div>
+    `;
+    errorContainer.style.display = 'block';
+    
+    // Scroll to top to show error
+    errorContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  /**
+   * Shows a success message to the user
+   */
+  private showSuccessMessage(message: string): void {
+    let successContainer = this.domElement.querySelector('.success-message') as HTMLElement;
+    
+    if (!successContainer) {
+      // Create success container if it doesn't exist
+      successContainer = document.createElement('div');
+      successContainer.className = 'success-message';
+      
+      // Insert at the top of the form
+      const formContainer = this.domElement.querySelector('.enquiry-form');
+      if (formContainer) {
+        formContainer.insertBefore(successContainer, formContainer.firstChild);
+      }
+    }
+    
+    successContainer.innerHTML = `
+      <div style="background-color: #d4edda; color: #155724; padding: 12px; border: 1px solid #c3e6cb; border-radius: 4px; margin-bottom: 20px;">
+        <strong>Success:</strong> ${message}
+      </div>
+    `;
+    successContainer.style.display = 'block';
+    
+    // Scroll to top to show success message
+    successContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+
+  // Deprecated methods completely removed - only new handler approach is used
 
   private resetForm(): void {
     this.currentStep = 1;
@@ -1917,6 +1819,46 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       files: []
     };
     this.render();
+  }
+
+  /**
+   * Clears form data but keeps the thank you step visible
+   */
+  private clearFormDataButKeepThankYou(): void {
+    // Clear sensitive form data but don't reset currentStep
+    this.formData = {
+      // Basic Information
+      fullName: '',
+      organisationName: '',
+      contactNumber: '',
+      emailAddress: '',
+      websiteAddress: '',
+      operationLocation: '',
+      countriesOfOperation: [],
+      operationLength: '',
+      
+      // Industry Information
+      primaryBusinessAreas: '',
+      productServiceCategory: '',
+      otherProductServiceCategory: '',
+      operationalStatus: null,
+      regulatoryStatus: null,
+      regulators: [],
+      otherRegulator: '',
+      
+      // Enquiry Details
+      productServiceDescription: '',
+      questions: [''],
+      additionalInformation: '',
+      faqConfirmation: null,
+      consentConfirmation: false,
+      
+      // Attachments
+      files: []
+    };
+    
+    // Don't call render() here - let the thank you step stay visible
+    console.log('Form data cleared, thank you step remains visible');
   }
 
   private setupRegulatorSelector(): void {
@@ -2180,141 +2122,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     };
   }
 
-  /**
-   * Makes an API call using service account credentials to avoid authentication prompts
-   */
-  private makeApiCallWithServiceAccount(url: string, method: string, headers: any, body: string | ArrayBuffer): Promise<any> {
-    // If url doesn't start with http, prepend the web's absolute URL
-    if (url.indexOf('http') !== 0 && this.context) {
-      url = `${this.context.pageContext.web.absoluteUrl}${url.startsWith('/') ? '' : '/'}${url}`;
-    }
-    
-    // Clean URL of any auth-triggering parameters
-    url = url.replace(/([?&])prompt=login(&|$)/, '$1')
-             .replace(/([?&])force=true(&|$)/, '$1')
-             .replace(/\?$/, '');
-    
-    console.log(`Making API call to ${url} with service account`);
-    
-    // For REST API calls, we need a form digest
-    const needsDigest = (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'MERGE') &&
-                        (url.indexOf('/_api/') > -1);
-    
-    // Get form digest first if needed, otherwise proceed directly
-    const digestPromise = needsDigest 
-      ? this.getFormDigestWithServiceAccount() 
-      : Promise.resolve(null);
-      
-    return digestPromise.then(digest => {
-      return new Promise<string>((resolve, reject) => {
-        try {
-          console.log(`Making asynchronous request to ${url}`);
-          const xhr = new XMLHttpRequest();
-          xhr.open(method, url, true);  // always use async for more reliability
-          xhr.timeout = 60000;  // 60 second timeout
-          
-          // Set headers
-          Object.keys(headers).forEach(header => {
-            xhr.setRequestHeader(header, headers[header]);
-          });
-          
-          // Add digest if needed
-          if (needsDigest && digest) {
-            console.log('Adding X-RequestDigest header');
-            xhr.setRequestHeader('X-RequestDigest', digest);
-          }
-          
-          // Set credentials
-          const credentials = this.getServiceAccountCredentials();
-         xhr.setRequestHeader('Authorization', 'Basic ' + credentials);
-          
-          // Set credentials handling - critical to avoid prompts
-          xhr.withCredentials = false;
-          
-          xhr.onreadystatechange = function() {
-            if (xhr.readyState === 4) {
-              if (xhr.status >= 200 && xhr.status < 300) {
-                console.log(`API call succeeded with status: ${xhr.status}`);
-                resolve(xhr.responseText);
-              } else if (xhr.status === 401 || xhr.status === 403) {
-                // Authentication error - continue anyway with empty response
-                console.log(`Auth error ${xhr.status} intercepted, continuing anyway`);
-                resolve('{}');
-              } else {
-                console.log(`API call failed: ${xhr.status} `, xhr.responseText);
-                reject(new Error(`API call failed: ${xhr.responseText}`));
-              }
-            }
-          };
-          
-          xhr.onerror = function() {
-            console.error('Request error occurred');
-            // Return empty response instead of error
-            resolve('{}');
-          };
-          
-          xhr.ontimeout = function() {
-            console.error('Request timed out');
-            // Return empty response instead of error
-            resolve('{}');
-          };
-          
-          // Send request
-          console.log(`Sending ${method} request to ${url}`);
-          if (typeof body === 'string') {
-            xhr.send(body);
-          } else {
-            // Handle ArrayBuffer data
-            xhr.send(body);
-          }
-        } catch (error) {
-          console.error('Error in API call:', error);
-          // Return empty response instead of error
-          resolve('{}');
-        }
-      });
-    });
-  }
-  
-  /**
-   * Gets a form digest value using service account credentials
-   * This is required for most write operations to SharePoint
-   */
-  private getFormDigestWithServiceAccount(): Promise<string> {
-    console.log('Getting form digest with service account');
-    
-    const digestUrl = `${this.context.pageContext.web.absoluteUrl}/_api/contextinfo`;
-    
-    return this.context.spHttpClient.post(digestUrl, SPHttpClient.configurations.v1, {
-      headers: {
-        'Accept': 'application/json;odata=verbose'
-      }
-    })
-    .then((response: SPHttpClientResponse) => {
-      if (response.ok) {
-        return response.json();
-      } else {
-        console.log('Failed to get form digest, using fallback');
-        return Promise.resolve({ d: { GetContextWebInformation: { FormDigestValue: '0xDEADBEEF12345678' } } });
-      }
-    })
-    .then((response) => {
-      try {
-        const formDigestValue = response.d.GetContextWebInformation.FormDigestValue;
-        console.log('Successfully retrieved form digest');
-        return formDigestValue;
-      } catch (parseError) {
-        console.error('Error parsing digest response:', parseError);
-        // Use fallback
-        return '0xDEADBEEF12345678';
-      }
-    })
-    .catch((error) => {
-      console.error('Error getting form digest:', error);
-      // Use fallback
-      return '0xDEADBEEF12345678';
-    });
-  }
+
 
   public onInit(): Promise<void> {
     return super.onInit().then(() => {
@@ -2346,6 +2154,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       // Set up auth interception to prevent login prompts
       this.setupAuthInterceptors();
 
+      // Prevent authentication prompts on page refresh
+      this.preventAuthPrompts();
+
       // Ensure we have a default question
       if (!this.formData.questions || this.formData.questions.length === 0) {
         this.formData.questions = [''];
@@ -2354,7 +2165,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       // Set up handlers to prevent authentication dialogs on navigation
       window.addEventListener('beforeunload', () => {
         if (this.currentStep === 4) { // Only if we've submitted the form
-          this.clearAuthenticationContext();
+          console.log('Form submission completed, page unloading');
         }
       });
 
@@ -2375,9 +2186,54 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     window.addEventListener('beforeunload', () => {
       // Only clear if we've submitted a form
       if (this.currentStep === 4) {
-        this.clearAuthenticationContext();
+        console.log('Form submission completed, cleaning up');
       }
     });
+  }
+
+  /**
+   * Prevents authentication prompts on page refresh for anonymous users
+   */
+  private preventAuthPrompts(): void {
+    console.log('Setting up prevention of authentication prompts on refresh');
+    
+    // Override page refresh behavior for anonymous users
+    window.addEventListener('beforeunload', (e) => {
+      // Don't show confirmation dialog for anonymous users
+      try {
+        if (this.context && this.context.pageContext && this.context.pageContext.user && 
+            this.context.pageContext.user.loginName && 
+            this.context.pageContext.user.loginName.toLowerCase().indexOf('anonymous') !== -1) {
+          delete e.returnValue;
+        }
+      } catch (error) {
+        console.log('Could not check user context for anonymous status');
+      }
+    });
+    
+    // Clear any cached authentication tokens on page load
+    try {
+      if (typeof Storage !== 'undefined' && sessionStorage) {
+        // Clear any auth-related session storage
+        const keysToRemove = [];
+        for (let i = 0; i < sessionStorage.length; i++) {
+          const key = sessionStorage.key(i);
+          if (key && (key.includes('auth') || key.includes('token') || key.includes('login') || key.includes('digest'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => {
+          try {
+            sessionStorage.removeItem(key);
+          } catch (e) {
+            console.log('Could not remove session storage key:', key);
+          }
+        });
+        console.log('Cleared authentication-related session storage');
+      }
+    } catch (error) {
+      console.log('Could not access session storage for cleanup');
+    }
   }
 
   /**
@@ -2406,7 +2262,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     // Get form digest first if needed, otherwise proceed directly
     const digestPromise = needsDigest 
-      ? this.getFormDigestWithServiceAccount() 
+      ? Promise.resolve(null) // Form digest handling moved to submitForm method
       : Promise.resolve(null);
       
     return digestPromise.then(digest => {
