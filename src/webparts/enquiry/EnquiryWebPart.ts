@@ -421,47 +421,18 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   
   private renderProductServiceCategoryOptions(): string {
     const businessArea = this.formData.primaryBusinessAreas;
-    
-    // If no business area is selected, return an empty options list
-    if (!businessArea) {
-      return '';
+    if (!businessArea || !CATEGORIES[businessArea]) {
+      return '<option value="">Please select a primary business area first</option>';
     }
     
-    // Get the subcategories for the selected business area
-    // First check if the exact key exists
-    let categories = CATEGORIES[businessArea];
-    
-    // If not found, try case-insensitive search
-    if (!categories) {
-      // Find a key that matches the business area case-insensitively
-      const matchingKey = Object.keys(CATEGORIES).find(
-        key => key.toLowerCase() === businessArea.toLowerCase()
-      );
-      
-      if (matchingKey) {
-        categories = CATEGORIES[matchingKey];
-      }
+    const categories = CATEGORIES[businessArea];
+    if (categories.length === 0) {
+      return '<option value="">No categories available</option>';
     }
     
-    // If still no categories found, return empty
-    if (!categories || !Array.isArray(categories)) {
-      console.log(`No categories found for business area: ${businessArea}`);
-      return '';
-    }
-    
-    // Generate options for the subcategories
-    let options = '';
-    for (let i = 0; i < categories.length; i++) {
-      const category = categories[i];
-      options += `<option value="${category}" ${this.formData.productServiceCategory === category ? 'selected' : ''}>${category}</option>`;
-    }
-    
-    // Add an "Other" option if not already in the list
-    if (categories.indexOf('Other') === -1) {
-      options += `<option value="Other" ${this.formData.productServiceCategory === 'Other' ? 'selected' : ''}>Other</option>`;
-    }
-    
-    return options;
+    return categories.map(category => 
+      `<option value="${category}" ${this.formData.productServiceCategory === category ? 'selected' : ''}>${category}</option>`
+    ).join('');
   }
 
   private renderInquiryStep(): string {
@@ -595,14 +566,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private setButtonHandlers(): void {
-    console.log('Setting up button handlers for step:', this.currentStep);
-    
     // Navigation buttons
     const nextToStep2Button = this.domElement.querySelector('#nextToStep2');
     if (nextToStep2Button) {
-      console.log('Found Next to Step 2 button');
       nextToStep2Button.addEventListener('click', () => {
-        console.log('Next to Step 2 clicked');
         if (this.validateStep1()) {
           this.saveStep1Data();
           this.currentStep = 2;
@@ -613,14 +580,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           this.render();
         }
       });
-    } else {
-      console.log('Next to Step 2 button not found');
     }
     
     const backToStep1Button = this.domElement.querySelector('#backToStep1');
     if (backToStep1Button) {
       backToStep1Button.addEventListener('click', () => {
-        console.log('Back to Step 1 clicked');
         this.saveCurrentIndustryData(); // Save current data before going back
         this.currentStep = 1;
         this.validateAttempted = false;
@@ -631,7 +595,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const nextToStep3Button = this.domElement.querySelector('#nextToStep3');
     if (nextToStep3Button) {
       nextToStep3Button.addEventListener('click', () => {
-        console.log('Next to Step 3 clicked');
         if (this.validateStep2()) {
           this.saveStep2Data();
           this.currentStep = 3;
@@ -650,8 +613,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         // Prevent default behavior
         e.preventDefault();
         
-        console.log('Back to Step 2 clicked');
-        
         // Save current step data before moving back
         this.saveCurrentInquiryData();
         
@@ -666,8 +627,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       submitButton.addEventListener('click', (e) => {
         // Prevent default behavior
         e.preventDefault();
-        
-        console.log('Submit button clicked');
         
         // Make sure to save current data before validation
         this.saveCurrentInquiryData();
@@ -685,7 +644,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const newInquiryButton = this.domElement.querySelector('#newInquiryBtn');
     if (newInquiryButton) {
       newInquiryButton.addEventListener('click', () => {
-        console.log('New Inquiry button clicked');
         this.resetForm();
       });
     }
@@ -694,7 +652,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const addQuestionButton = this.domElement.querySelector('#addQuestionBtn');
     if (addQuestionButton) {
       addQuestionButton.addEventListener('click', () => {
-        console.log('Add question button clicked');
         // Save current form data
         this.saveCurrentInquiryData();
         
@@ -709,7 +666,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const uploadButton = this.domElement.querySelector('#uploadBtn');
     if (uploadButton) {
       uploadButton.addEventListener('click', () => {
-        console.log('Upload button clicked');
         const fileInput = this.domElement.querySelector('#fileUpload') as HTMLInputElement;
         if (fileInput) {
           fileInput.click();
@@ -722,14 +678,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       this.fileUploadElement = fileInput;
       
       fileInput.addEventListener('change', (e) => {
-        console.log('File input changed');
-        
         // Save the current form state
         this.saveCurrentInquiryData();
         
         const input = e.target as HTMLInputElement;
         if (input.files && input.files.length > 0) {
-          console.log(`${input.files.length} files selected`);
           
           // Check if number of files would exceed the limit
           const totalFiles = (this.formData.files ? this.formData.files.length : 0) + input.files.length;
@@ -778,8 +731,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       const primaryBusinessAreasSelect = this.domElement.querySelector('#primaryBusinessAreas') as HTMLSelectElement;
       if (primaryBusinessAreasSelect) {
         primaryBusinessAreasSelect.addEventListener('change', () => {
-          console.log('Primary business area changed to:', primaryBusinessAreasSelect.value);
-          
           // Save current industry data
           this.saveCurrentIndustryData();
           
@@ -798,7 +749,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           // If the primary area has changed, ensure product service category dropdown is updated
           const productServiceCategorySelect = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
           if (productServiceCategorySelect) {
-            console.log('Setting up product service category change handler');
             productServiceCategorySelect.addEventListener('change', () => {
               // Save current data whenever the product category changes
               this.saveCurrentIndustryData();
@@ -809,7 +759,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         // Also set up the product service category change handler initially
         const productServiceCategorySelect = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
         if (productServiceCategorySelect) {
-          console.log('Setting up initial product service category change handler');
           productServiceCategorySelect.addEventListener('change', () => {
             // Save current data whenever the product category changes
             this.saveCurrentIndustryData();
@@ -822,8 +771,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
 
         if (regulatoryStatusYes) {
           regulatoryStatusYes.addEventListener('change', () => {
-            console.log('Regulatory status changed to Yes');
-            
             // Save current state
             this.saveCurrentIndustryData();
             
@@ -838,8 +785,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
 
         if (regulatoryStatusNo) {
           regulatoryStatusNo.addEventListener('change', () => {
-            console.log('Regulatory status changed to No');
-            
             // Save current state
             this.saveCurrentIndustryData();
             
@@ -866,15 +811,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
   
   private setupCountrySelector(): void {
-    console.log('Setting up country selector - DEBUG');
-    
     // Setup the country search
     const countrySearch = this.domElement.querySelector('#countrySearch') as HTMLInputElement;
     const countryList = this.domElement.querySelector('.' + styles.countryList);
     
     if (countrySearch && countryList) {
-      console.log('Found country search field and list');
-      
       // Re-render the country list to ensure it's properly initialized
       countryList.innerHTML = COUNTRIES.map(country => `
         <div class="${ styles.countryItem }">
@@ -888,7 +829,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       // Setup search functionality
       countrySearch.addEventListener('input', () => {
         const searchValue = countrySearch.value.toLowerCase().trim();
-        console.log('Searching for country:', searchValue);
         
         const countryItems = countryList.querySelectorAll('.' + styles.countryItem);
         for (let i = 0; i < countryItems.length; i++) {
@@ -904,13 +844,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           }
         }
       });
-    } else {
-      console.log('Country search field or list not found');
     }
     
     // Setup checkbox for country selection
     const countryCheckboxes = this.domElement.querySelectorAll('.country-checkbox');
-    console.log('Found country checkboxes:', countryCheckboxes.length);
     
     for (let i = 0; i < countryCheckboxes.length; i++) {
       const checkbox = countryCheckboxes[i] as HTMLInputElement;
@@ -919,18 +856,14 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       checkbox.checked = this.formData.countriesOfOperation.includes(countryName);
       
       checkbox.addEventListener('change', () => {
-        console.log('Country checkbox changed:', countryName, checkbox.checked);
-        
         if (checkbox.checked) {
           if (!this.formData.countriesOfOperation.includes(countryName)) {
             this.formData.countriesOfOperation.push(countryName);
-            console.log('Added country:', countryName);
           }
         } else {
           const index = this.formData.countriesOfOperation.indexOf(countryName);
           if (index !== -1) {
             this.formData.countriesOfOperation.splice(index, 1);
-            console.log('Removed country:', countryName);
           }
         }
         
@@ -943,7 +876,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private setupEmailValidation(): void {
-    console.log('Setting up email validation');
     const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
     
     if (emailInput) {
@@ -998,14 +930,12 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private setupRemoveCountryButtons(): void {
-    console.log('Setting up remove country buttons');
     const removeButtons = this.domElement.querySelectorAll('.remove-country-btn');
     
     for (let i = 0; i < removeButtons.length; i++) {
       const button = removeButtons[i] as HTMLButtonElement;
       button.addEventListener('click', () => {
         const countryName = button.getAttribute('data-country');
-        console.log('Remove country button clicked:', countryName);
         
         if (countryName) {
           const index = this.formData.countriesOfOperation.indexOf(countryName);
@@ -1026,27 +956,13 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private updateSelectedCountriesDisplay(): void {
-    console.log('Updating selected countries display - DEBUG');
-    console.log('Countries to display:', this.formData.countriesOfOperation);
-    
     // Try both selectors to see which one works
     const selectedCountriesContainer = this.domElement.querySelector(`.${styles.selectedCountries}`);
-    console.log('Selected countries container found with styles.selectedCountries:', !!selectedCountriesContainer);
-    
-    if (!selectedCountriesContainer) {
-      console.warn('Could not find selected countries container with .selectedCountries class');
-      console.log('Available selectors in this area:', 
-        Array.from(this.domElement.querySelectorAll('.country-selector *'))
-          .map(el => (el as HTMLElement).className)
-          .join(', ')
-      );
-    }
     
     if (selectedCountriesContainer) {
       selectedCountriesContainer.innerHTML = '';
       
       if (this.formData.countriesOfOperation.length > 0) {
-        console.log('Countries selected:', this.formData.countriesOfOperation.length);
         
         for (const country of this.formData.countriesOfOperation) {
           const countryElement = document.createElement('div');
@@ -1069,7 +985,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           countriesFeedback.classList.remove('show-error');
         }
       } else {
-        console.log('No countries selected');
         // Show validation error if validation has been attempted
         if (this.validateAttempted) {
           const countriesFeedback = this.domElement.querySelector('#countriesFeedback');
@@ -1081,13 +996,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       
       // Refresh remove buttons
       this.setupRemoveCountryButtons();
-    } else {
-      console.log('Selected countries container not found');
     }
   }
 
   private validateStep1(): boolean {
-    console.log('Validating Step 1');
     this.validateAttempted = true;
     let isValid = true;
     
@@ -1099,39 +1011,32 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     // Check each field for validity
     if (!fullNameInput || !fullNameInput.value.trim()) {
-      console.log('Full name is invalid');
       isValid = false;
     }
     
     if (!organisationNameInput || !organisationNameInput.value.trim()) {
-      console.log('Organisation name is invalid');
       isValid = false;
     }
     
     if (!emailAddressInput || !emailAddressInput.value.trim()) {
-      console.log('Email address is empty');
       isValid = false;
     } else {
       // Validate email format
       const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailPattern.test(emailAddressInput.value)) {
-        console.log('Email address format is invalid');
         isValid = false;
       }
     }
     
     if (!operationLocationInput || !operationLocationInput.value.trim()) {
-      console.log('Operation location is invalid');
       isValid = false;
     }
     
     if (this.formData.countriesOfOperation.length === 0) {
-      console.log('Countries of operation is empty');
       isValid = false;
     }
     
     if (!operationLengthInput || !operationLengthInput.value.trim()) {
-      console.log('Operation length is invalid');
       isValid = false;
     }
     
@@ -1139,21 +1044,16 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     if (!isValid) {
       this.render();
     }
-    
-    console.log('Step 1 validation result:', isValid);
     return isValid;
   }
 
   private validateStep2(): boolean {
-    console.log('Validating Step 2');
     this.validateAttempted = true;
     let isValid = true;
     
     // Primary business area validation
     const primaryBusinessArea = this.domElement.querySelector('#primaryBusinessAreas') as HTMLSelectElement;
-    console.log('Primary business area:', primaryBusinessArea ? primaryBusinessArea.value : undefined);
     if (!primaryBusinessArea || !primaryBusinessArea.value) {
-      console.log('Primary business area is invalid');
       isValid = false;
     } else {
       this.formData.primaryBusinessAreas = primaryBusinessArea.value;
@@ -1161,9 +1061,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     // Product/service category validation
     const productServiceCategory = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
-    console.log('Product/service category:', productServiceCategory ? productServiceCategory.value : undefined);
     if (!productServiceCategory || !productServiceCategory.value) {
-      console.log('Product/service category is invalid');
       isValid = false;
     } else {
       this.formData.productServiceCategory = productServiceCategory.value;
@@ -1172,9 +1070,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Other product/service category validation if "Other" is selected
     if (this.formData.productServiceCategory === 'Other') {
       const otherProductServiceCategory = this.domElement.querySelector('#otherProductServiceCategory') as HTMLInputElement;
-      console.log('Other product/service category:', otherProductServiceCategory ? otherProductServiceCategory.value : undefined);
       if (!otherProductServiceCategory || !otherProductServiceCategory.value.trim()) {
-        console.log('Other product/service category is invalid');
         isValid = false;
       } else {
         this.formData.otherProductServiceCategory = otherProductServiceCategory.value.trim();
@@ -1184,21 +1080,18 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Operational status validation
     const operationalStatusYes = this.domElement.querySelector('#operationalStatusYes') as HTMLInputElement;
     const operationalStatusNo = this.domElement.querySelector('#operationalStatusNo') as HTMLInputElement;
-    console.log('Operational status:', operationalStatusYes && operationalStatusYes.checked ? 'Yes' : (operationalStatusNo && operationalStatusNo.checked ? 'No' : 'Not selected'));
     
     if (operationalStatusYes && operationalStatusYes.checked) {
       this.formData.operationalStatus = true;
     } else if (operationalStatusNo && operationalStatusNo.checked) {
       this.formData.operationalStatus = false;
     } else {
-      console.log('Operational status is invalid');
       isValid = false;
     }
     
     // Regulatory status validation
     const regulatoryStatusYes = this.domElement.querySelector('#regulatoryStatusYes') as HTMLInputElement;
     const regulatoryStatusNo = this.domElement.querySelector('#regulatoryStatusNo') as HTMLInputElement;
-    console.log('Regulatory status:', regulatoryStatusYes && regulatoryStatusYes.checked ? 'Yes' : (regulatoryStatusNo && regulatoryStatusNo.checked ? 'No' : 'Not selected'));
     
     if (regulatoryStatusYes && regulatoryStatusYes.checked) {
       this.formData.regulatoryStatus = true;
@@ -1210,10 +1103,8 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       
       // Regulator validation (only if regulatory status is Yes)
       const regulatorCheckboxes = this.domElement.querySelectorAll('.regulator-checkbox:checked') as NodeListOf<HTMLInputElement>;
-      console.log('Regulators checked count:', regulatorCheckboxes ? regulatorCheckboxes.length : 0);
       
       if (!regulatorCheckboxes || regulatorCheckboxes.length === 0) {
-        console.log('No regulators selected');
         isValid = false;
       } else {
         this.formData.regulators = Array.from(regulatorCheckboxes).map(checkbox => checkbox.value);
@@ -1221,10 +1112,8 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         // Check for Other regulator
         if (this.formData.regulators.indexOf('Other') !== -1) {
           const otherRegulator = this.domElement.querySelector('#otherRegulator') as HTMLInputElement;
-          console.log('Other regulator:', otherRegulator ? otherRegulator.value : undefined);
           
           if (!otherRegulator || !otherRegulator.value.trim()) {
-            console.log('Other regulator is invalid');
             isValid = false;
           } else {
             this.formData.otherRegulator = otherRegulator.value.trim();
@@ -1236,29 +1125,23 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       // If regulatory status is No, we don't need regulators
       this.formData.regulators = [];
     } else {
-      console.log('Regulatory status is invalid');
       isValid = false;
     }
     
     // Re-render to show validation messages if invalid
     if (!isValid) {
-      console.log('Step 2 validation failed');
       this.render();
     }
-    
-    console.log('Step 2 validation result:', isValid);
     return isValid;
   }
 
   private validateStep3(): boolean {
-    console.log('Validating Step 3');
     this.validateAttempted = true;
     let isValid = true;
     
     // Product/service description validation
     const descriptionTextarea = this.domElement.querySelector('#productServiceDescription') as HTMLTextAreaElement;
     if (!descriptionTextarea || !descriptionTextarea.value.trim()) {
-      console.log('Product/service description is invalid');
       isValid = false;
     } else {
       this.formData.productServiceDescription = descriptionTextarea.value.trim();
@@ -1277,7 +1160,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     }
     
     if (!hasValidQuestion) {
-      console.log('No valid questions found');
       isValid = false;
     }
     
@@ -1285,28 +1167,23 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const faqYes = this.domElement.querySelector('#faqConfirmationYes') as HTMLInputElement;
     const faqNo = this.domElement.querySelector('#faqConfirmationNo') as HTMLInputElement;
     if ((!faqYes || !faqYes.checked) && (!faqNo || !faqNo.checked)) {
-      console.log('FAQ confirmation is invalid');
       isValid = false;
     }
     
     // Consent validation
     const consentCheckbox = this.domElement.querySelector('#consentCheckbox') as HTMLInputElement;
     if (!consentCheckbox || !consentCheckbox.checked) {
-      console.log('Consent is not checked');
       isValid = false;
     }
     
     // Re-render to show validation messages if invalid
     if (!isValid) {
-      console.log('Step 3 validation failed');
       this.render();
       
       // Re-setup event handlers after render
       this.setupRemoveQuestionButtons();
       this.setupRemoveFileButtons();
     }
-    
-    console.log('Step 3 validation result:', isValid);
     return isValid;
   }
 
@@ -1316,7 +1193,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private saveStep1Data(): void {
-    console.log('Saving Step 1 data');
     const fullNameInput = this.domElement.querySelector('#fullName') as HTMLInputElement;
     const organisationNameInput = this.domElement.querySelector('#organisationName') as HTMLInputElement;
     const contactNumberInput = this.domElement.querySelector('#contactNumber') as HTMLInputElement;
@@ -1334,7 +1210,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     if (operationLengthInput) this.formData.operationLength = operationLengthInput.value.trim();
     
     // Note: Countries of operation are managed by event listeners which update the countriesOfOperation array
-    console.log('Saved form data:', this.formData);
     
     // Move to the next step
     this.currentStep = 2;
@@ -1343,19 +1218,15 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private saveStep2Data(): void {
-    console.log('Saving Step 2 data');
-    
     // Get primary business area
     const primaryBusinessAreasSelect = this.domElement.querySelector('#primaryBusinessAreas') as HTMLSelectElement;
     if (primaryBusinessAreasSelect) {
-      console.log('Saving primary business area:', primaryBusinessAreasSelect.value);
       this.formData.primaryBusinessAreas = primaryBusinessAreasSelect.value;
     }
     
     // Get product/service category
     const productServiceCategorySelect = this.domElement.querySelector('#productServiceCategory') as HTMLSelectElement;
     if (productServiceCategorySelect) {
-      console.log('Saving product/service category:', productServiceCategorySelect.value);
       this.formData.productServiceCategory = productServiceCategorySelect.value;
     }
     
@@ -1363,7 +1234,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     if (this.formData.productServiceCategory === 'Other') {
       const otherProductServiceCategoryInput = this.domElement.querySelector('#otherProductServiceCategory') as HTMLInputElement;
       if (otherProductServiceCategoryInput) {
-        console.log('Saving other product/service category:', otherProductServiceCategoryInput.value);
         this.formData.otherProductServiceCategory = otherProductServiceCategoryInput.value;
       }
     }
@@ -1372,7 +1242,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const operationalStatusYes = this.domElement.querySelector('#operationalStatusYes') as HTMLInputElement;
     const operationalStatusNo = this.domElement.querySelector('#operationalStatusNo') as HTMLInputElement;
     if (operationalStatusYes && operationalStatusNo) {
-      console.log('Saving operational status:', operationalStatusYes.checked ? 'Yes' : 'No');
       if (operationalStatusYes.checked) {
         this.formData.operationalStatus = true;
       } else if (operationalStatusNo.checked) {
@@ -1384,7 +1253,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const regulatoryStatusYes = this.domElement.querySelector('#regulatoryStatusYes') as HTMLInputElement;
     const regulatoryStatusNo = this.domElement.querySelector('#regulatoryStatusNo') as HTMLInputElement;
     if (regulatoryStatusYes && regulatoryStatusNo) {
-      console.log('Saving regulatory status:', regulatoryStatusYes.checked ? 'Yes' : 'No');
       if (regulatoryStatusYes.checked) {
         this.formData.regulatoryStatus = true;
         
@@ -1393,7 +1261,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         if (regulatorCheckboxes && regulatorCheckboxes.length > 0) {
           // Update the regulators array directly from checked checkboxes
           this.formData.regulators = Array.from(regulatorCheckboxes).map(checkbox => checkbox.value);
-          console.log('Saving regulators:', this.formData.regulators);
         }
       } else if (regulatoryStatusNo.checked) {
         this.formData.regulatoryStatus = false;
@@ -1403,13 +1270,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     // Get other regulator if applicable
     if (this.formData.regulators.indexOf('Other') !== -1) {
       const otherRegulatorInput = this.domElement.querySelector('#otherRegulator') as HTMLInputElement;
-      console.log('Saving other regulator:', otherRegulatorInput ? otherRegulatorInput.value : undefined);
       if (otherRegulatorInput && otherRegulatorInput.value.trim()) {
         this.formData.otherRegulator = otherRegulatorInput.value.trim();
       }
     }
-    
-    console.log('Step 2 data saved:', this.formData);
     
     // Do NOT validate step 3 here - we're moving TO step 3
   }
@@ -1465,10 +1329,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private async submitForm(): Promise<void> {
-    console.log('🚀 Starting HYBRID form submission process...');
-    console.log('📋 List submission: REST API (anonymous)');
-    console.log('📁 File uploads: Service Account (.ashx handler)');
-    
     // Show loading state
     const submitButton = this.domElement.querySelector('.submit-btn') as HTMLButtonElement;
     if (submitButton) {
@@ -1479,28 +1339,21 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     try {
       // Generate enquiry reference
       const enquiryReference = this.generateEnquiryReference();
-      console.log('Generated enquiry reference:', enquiryReference);
       
       // Step 1: Upload files using service account .ashx handler (if files exist)
       let fileUrls: string[] = [];
       let fileCount = 0;
       
       if (this.formData.files && this.formData.files.length > 0) {
-        console.log(`📁 Uploading ${this.formData.files.length} files using service account...`);
-        
         try {
           const uploadResult = await this.uploadFilesWithServiceAccount(enquiryReference);
           fileUrls = uploadResult.uploadedFiles || [];
           fileCount = uploadResult.fileCount || 0;
-          console.log(`✅ Files uploaded successfully: ${fileCount} files`);
         } catch (uploadError) {
-          console.warn('⚠️ File upload failed, continuing with form submission:', uploadError);
           // Continue with form submission even if file upload fails
           fileUrls = [];
           fileCount = 0;
         }
-      } else {
-        console.log('📁 No files to upload');
       }
       
       // Step 2: Prepare data for SharePoint list (with actual file URLs if uploaded)
@@ -1534,10 +1387,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         NumberOfAttachements: fileCount > 0 ? fileCount.toString() : (this.formData.files ? this.formData.files.length.toString() : '0')
       };
       
-      console.log('📋 Prepared list item data:', listItemData);
-      
       // Step 3: Get form digest for REST API authentication
-      console.log('🔐 Getting form digest for list submission...');
       const digestResponse = await fetch('/_api/contextinfo', {
         method: 'POST',
         headers: {
@@ -1553,10 +1403,8 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       
       const digestData = await digestResponse.json();
       const formDigest = digestData.FormDigestValue;
-      console.log('✅ Form digest obtained successfully');
       
       // Step 4: Submit to SharePoint list using REST API
-      console.log('📋 Submitting to SharePoint list using REST API...');
       const listName = this.properties.submissionListName || 'Enquiry Details';
       const listResponse = await fetch(`/_api/web/lists/getbytitle('${listName}')/items`, {
         method: 'POST',
@@ -1571,7 +1419,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       
       if (!listResponse.ok) {
         const errorText = await listResponse.text();
-        console.error('❌ List submission failed:', errorText);
         
         if (listResponse.status === 404 || errorText.includes('List') || errorText.includes('not found')) {
           throw new Error(`SharePoint list '${listName}' not found. Please ensure the list exists and has the correct name.`);
@@ -1581,9 +1428,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       }
       
       const listResult = await listResponse.json();
-      console.log('✅ List submission successful:', listResult);
-      
-      console.log('🎉 HYBRID form submission completed successfully!');
       
       // Show success message
       const fileMessage = fileCount > 0 ? 
@@ -1600,8 +1444,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       this.clearFormDataButKeepThankYou();
       
     } catch (error) {
-      console.error('❌ Error in hybrid form submission:', error);
-      
       // Re-enable submit button
       if (submitButton) {
         submitButton.disabled = false;
@@ -1624,8 +1466,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         const file = this.formData.files[i];
         const fileName = `${enquiryReference}_${i + 1}_${file.name}`;
         
-        console.log(`Uploading file ${i + 1}/${this.formData.files.length}: ${fileName}`);
-        
         // Convert file to array buffer
         const fileBuffer = await file.arrayBuffer();
         
@@ -1643,7 +1483,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         
         if (!uploadResponse.ok) {
           const errorText = await uploadResponse.text();
-          console.error(`File upload failed for ${fileName}:`, errorText);
           
           if (uploadResponse.status === 404) {
             throw new Error(`Document library '${libraryName}' not found. Please ensure the library exists.`);
@@ -1653,25 +1492,18 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         }
         
         const uploadResult = await uploadResponse.json();
-        console.log(`File uploaded successfully: ${fileName}`, uploadResult);
       }
       
-      console.log('All files uploaded successfully');
-      
-    } catch (error) {
-      console.error('Error uploading files:', error);
-      // Don't throw here - we want the form submission to succeed even if file upload fails
-      // Just log the error and continue
-      console.warn('File upload failed, but form submission will continue');
-    }
+          } catch (error) {
+        // Don't throw here - we want the form submission to succeed even if file upload fails
+        // Just log the error and continue
+      }
   }
 
   /**
    * Uploads files using the service account .ashx handler (HYBRID APPROACH)
    */
   private async uploadFilesWithServiceAccount(enquiryReference: string): Promise<{uploadedFiles: string[], fileCount: number}> {
-    console.log('🚀 Uploading files using service account handler...');
-    
     // Create FormData for file upload
     const formData = new FormData();
     formData.append('enquiryReference', enquiryReference);
@@ -1681,7 +1513,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     for (let i = 0; i < this.formData.files.length; i++) {
       const file = this.formData.files[i];
       formData.append(`file_${i}`, file, file.name);
-      console.log(`Added file ${i + 1}: ${file.name} (${Math.round(file.size/1024)}KB)`);
     }
     
     // Upload files using the existing .ashx handler in file-only mode
@@ -1693,7 +1524,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse.text();
-      console.error('❌ Service account file upload failed:', errorText);
       throw new Error(`File upload failed: ${uploadResponse.status} ${uploadResponse.statusText}`);
     }
     
@@ -1702,8 +1532,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     if (!uploadResult.success) {
       throw new Error(uploadResult.message || 'File upload failed');
     }
-    
-    console.log('✅ Service account file upload successful:', uploadResult);
     
     return {
       uploadedFiles: uploadResult.uploadedFiles || [],
@@ -1858,7 +1686,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     };
     
     // Don't call render() here - let the thank you step stay visible
-    console.log('Form data cleared, thank you step remains visible');
+
   }
 
   private setupRegulatorSelector(): void {
@@ -1936,7 +1764,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private saveCurrentInquiryData(): void {
-    console.log('Saving current enquiry data without changing steps');
+
     
     // Get product/service description
     const descriptionTextarea = this.domElement.querySelector('#productServiceDescription') as HTMLTextAreaElement;
@@ -1986,7 +1814,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       this.formData.consentConfirmation = consentCheckbox.checked;
     }
     
-    console.log('Current enquiry data saved:', this.formData);
+
   }
 
   /**
@@ -2012,16 +1840,16 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         // Reattach event listeners if needed
         this.setButtonHandlers();
       }
-    } catch (error) {
-      console.error('Error resetting file input:', error);
-    }
+          } catch (error) {
+        // Error resetting file input
+      }
   }
 
   /**
    * Saves the current industry form data without moving to another step
    */
   private saveCurrentIndustryData(): void {
-    console.log('Saving current industry step data without changing steps');
+
     
     // Get primary business area
     const primaryBusinessArea = this.domElement.querySelector('#primaryBusinessAreas') as HTMLSelectElement;
@@ -2072,7 +1900,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       }
     }
     
-    console.log('Current industry data saved:', this.formData);
+
   }
 
   protected getDataVersion(): Version {
@@ -2165,7 +1993,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       // Set up handlers to prevent authentication dialogs on navigation
       window.addEventListener('beforeunload', () => {
         if (this.currentStep === 4) { // Only if we've submitted the form
-          console.log('Form submission completed, page unloading');
+    
         }
       });
 
@@ -2177,7 +2005,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    * Set up interceptors to prevent authentication prompts, but only for this webpart
    */
   private setupAuthInterceptors(): void {
-    console.log('Setting up targeted auth interceptors for form submission only');
+
     
     // We won't override global fetch or XMLHttpRequest to avoid breaking SharePoint
     // Instead, we'll just handle auth in our own API calls
@@ -2186,7 +2014,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     window.addEventListener('beforeunload', () => {
       // Only clear if we've submitted a form
       if (this.currentStep === 4) {
-        console.log('Form submission completed, cleaning up');
+
       }
     });
   }
@@ -2195,7 +2023,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    * Prevents authentication prompts on page refresh for anonymous users
    */
   private preventAuthPrompts(): void {
-    console.log('Setting up prevention of authentication prompts on refresh');
+
     
     // Override page refresh behavior for anonymous users
     window.addEventListener('beforeunload', (e) => {
@@ -2206,9 +2034,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
             this.context.pageContext.user.loginName.toLowerCase().indexOf('anonymous') !== -1) {
           delete e.returnValue;
         }
-      } catch (error) {
-        console.log('Could not check user context for anonymous status');
-      }
+              } catch (error) {
+          // Could not check user context for anonymous status
+        }
     });
     
     // Clear any cached authentication tokens on page load
@@ -2226,13 +2054,13 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           try {
             sessionStorage.removeItem(key);
           } catch (e) {
-            console.log('Could not remove session storage key:', key);
+            // Could not remove session storage key
           }
         });
-        console.log('Cleared authentication-related session storage');
+        // Cleared authentication-related session storage
       }
     } catch (error) {
-      console.log('Could not access session storage for cleanup');
+      // Could not access session storage for cleanup
     }
   }
 
@@ -2254,7 +2082,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
              .replace(/([?&])force=true(&|$)/, '$1')
              .replace(/\?$/, '');
     
-    console.log(`Making API call to ${url} with SPHttpClient`);
+
     
     // For REST API calls, we need a form digest
     const needsDigest = (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'MERGE') &&
@@ -2273,7 +2101,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       
       // Add digest if needed
       if (needsDigest && digest) {
-        console.log('Adding X-RequestDigest header');
         requestOptions.headers['X-RequestDigest'] = digest;
       }
       
@@ -2283,7 +2110,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       }
       
       // Make the request using SPHttpClient
-      console.log(`Sending ${method} request to ${url}`);
       
       switch (method.toUpperCase()) {
         case 'GET':
@@ -2313,17 +2139,14 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         });
       } else if (response.status === 401 || response.status === 403) {
         // Authentication error - continue anyway with empty response
-        console.log(`Auth error ${response.status} intercepted, continuing anyway`);
         return '{}';
       } else {
-        console.log(`API call failed: ${response.status}`);
         return response.text().then(text => {
           throw new Error(`API call failed: ${text}`);
         });
       }
     })
     .catch(error => {
-      console.error('Error in API call:', error);
       // Return empty response instead of error
       return '{}';
     });
