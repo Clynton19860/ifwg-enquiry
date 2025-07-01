@@ -1428,7 +1428,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const hasFiles = this.formData.files && this.formData.files.length > 0;
     console.log(`Files to upload: ${hasFiles ? this.formData.files.length : 0}`);
     
-    // Use direct submission approach to avoid authentication issues
+    // Use XML submission with service account as PRIMARY method (like working version)
     console.log('Using XML submission with service account to avoid authentication dialogs');
     
     // Submit form data to SharePoint list using XML and service account
@@ -1509,16 +1509,8 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         }
       }
       
-      // Make a direct request to the web API to clear any auth context
-      const url = `${this.context.pageContext.web.absoluteUrl}/_api/web`;
-      
-      this.context.spHttpClient.get(url, SPHttpClient.configurations.v1)
-        .then((response: SPHttpClientResponse) => {
-          console.log('Auth context request completed with status:', response.status);
-        })
-        .catch((error) => {
-          console.error('Error in auth context request:', error);
-        });
+      // Remove the problematic API call that triggers sign-in dialog
+      // The localStorage marking is sufficient for our needs
       
       // Mark as completed in localStorage
       localStorage.setItem('authCleared', new Date().toISOString());
@@ -1542,17 +1534,23 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   /**
-   * Creates a list item in the Enquiry Details list with all form data combined
+   * Creates a list item in the Enquiry Details list using XML format (like working version)
    */
-  private createEnquiryDetailsListItem(): Promise<SPHttpClientResponse | any> {
-    console.log('Creating list item in Enquiry Details list using SPHttpClient');
+  private createEnquiryDetailsListItem(): Promise<any> {
+    console.log('Creating list item in Enquiry Details list using XML format');
     
-    // Ensure all values are initialized and safe
-    const safeValue = (value: any): any => {
+    // Ensure all values are initialized and safe for XML
+    const safeXmlValue = (value: any): string => {
       if (value === undefined || value === null) {
         return '';
       }
-      return value;
+      // Escape XML special characters
+      return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     };
     
     // Ensure arrays exist before joining
@@ -1564,71 +1562,80 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     const hasFiles = this.formData.files && this.formData.files.length > 0;
     console.log(`Has files to upload: ${hasFiles ? 'Yes' : 'No'}`);
     
-    // Prepare the item data using REST API format
-    const itemData = {
-      __metadata: { type: 'SP.Data.Enquiry_x0020_DetailsListItem' },
-      Title: `Enquiry from ${safeValue(this.formData.fullName)}`,
-      FullName: safeValue(this.formData.fullName),
-      OrganisationName: safeValue(this.formData.organisationName),
-      ContactNumber: safeValue(this.formData.contactNumber),
-      EmailAddress: safeValue(this.formData.emailAddress),
-      WebsiteAddress: safeValue(this.formData.websiteAddress),
-      OperationLocation: safeValue(this.formData.operationLocation),
-      CountriesOfOperation: countriesArray.join(', '),
-      OperationLength: safeValue(this.formData.operationLength),
-      PrimaryBusinessAreas: safeValue(this.formData.primaryBusinessAreas),
-      ProductServiceCategory: safeValue(this.formData.productServiceCategory),
-      OtherProductServiceCategory: safeValue(this.formData.otherProductServiceCategory),
-      OperationalStatus: this.formData.operationalStatus ? 'Yes' : 'No',
-      RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
-      Regulators: regulatorsArray.join(', '),
-      OtherRegulator: safeValue(this.formData.otherRegulator),
-      ProductServiceDescription: safeValue(this.formData.productServiceDescription),
-      Questions: questionsArray.join('\n\n'),
-      AdditionalInformation: safeValue(this.formData.additionalInformation),
-      FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
-      ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
-      FileAttachments: hasFiles ? 'Yes' : 'No',
-      NumberOfAttachments: this.formData.files ? this.formData.files.length : 0,
-      SubmissionDate: new Date().toISOString()
-    };
+    // Build SOAP envelope exactly like working version
+    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
+               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
+               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <UpdateListItems xmlns="http://schemas.microsoft.com/sharepoint/soap/">
+      <listName>Enquiry Details</listName>
+      <updates>
+        <Batch OnError="Continue">
+          <Method ID="1" Cmd="New">
+            <Field Name="Title">${safeXmlValue(`Enquiry from ${this.formData.fullName}`)}</Field>
+            <Field Name="FullName">${safeXmlValue(this.formData.fullName)}</Field>
+            <Field Name="OrganisationName">${safeXmlValue(this.formData.organisationName)}</Field>
+            <Field Name="ContactNumber">${safeXmlValue(this.formData.contactNumber)}</Field>
+            <Field Name="EmailAddress">${safeXmlValue(this.formData.emailAddress)}</Field>
+            <Field Name="WebsiteAddress">${safeXmlValue(this.formData.websiteAddress)}</Field>
+            <Field Name="OperationLocation">${safeXmlValue(this.formData.operationLocation)}</Field>
+            <Field Name="CountriesOfOperation">${safeXmlValue(countriesArray.join(', '))}</Field>
+            <Field Name="OperationLength">${safeXmlValue(this.formData.operationLength)}</Field>
+            <Field Name="PrimaryBusinessAreas">${safeXmlValue(this.formData.primaryBusinessAreas)}</Field>
+            <Field Name="ProductServiceCategory">${safeXmlValue(this.formData.productServiceCategory)}</Field>
+            <Field Name="OtherProductServiceCategory">${safeXmlValue(this.formData.otherProductServiceCategory)}</Field>
+            <Field Name="OperationalStatus">${safeXmlValue(this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : ''))}</Field>
+            <Field Name="RegulatoryStatus">${safeXmlValue(this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''))}</Field>
+            <Field Name="Regulators">${safeXmlValue(regulatorsArray.join(', '))}</Field>
+            <Field Name="OtherRegulator">${safeXmlValue(this.formData.otherRegulator)}</Field>
+            <Field Name="ProductServiceDescription">${safeXmlValue(this.formData.productServiceDescription)}</Field>
+            <Field Name="Questions">${safeXmlValue(questionsArray.join('\n\n'))}</Field>
+            <Field Name="AdditionalInformation">${safeXmlValue(this.formData.additionalInformation)}</Field>
+            <Field Name="FAQConfirmation">${safeXmlValue(this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''))}</Field>
+            <Field Name="ConsentConfirmation">${safeXmlValue(this.formData.consentConfirmation ? 'Yes' : 'No')}</Field>
+            <Field Name="FileAttachments">${safeXmlValue(hasFiles ? 'Yes' : 'No')}</Field>
+            <Field Name="NumberOfAttachments">${safeXmlValue(this.formData.files ? this.formData.files.length.toString() : '0')}</Field>
+            <Field Name="SubmissionDate">${safeXmlValue(new Date().toISOString())}</Field>
+          </Method>
+        </Batch>
+      </updates>
+    </UpdateListItems>
+  </soap:Body>
+</soap:Envelope>`;
+
+    const webServiceUrl = `${this.context.pageContext.web.absoluteUrl}/_vti_bin/lists.asmx`;
+    console.log(`Using Lists web service URL: ${webServiceUrl}`);
     
-    // Build the URL for the list
-    const listUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/lists/getbytitle('Enquiry Details')/items`;
-    console.log(`Using REST API URL: ${listUrl}`);
-    
-    // Get the request digest from the page
-    const requestDigest = (document.getElementById("__REQUESTDIGEST") as HTMLInputElement).value;
-    console.log('Got request digest from page element');
-    
-    // Use SPHttpClient to create the list item
-    return this.context.spHttpClient.post(
-      listUrl,
-      SPHttpClient.configurations.v1,
+    return this.makeApiCallWithServiceAccount(
+      webServiceUrl,
+      'POST',
       {
-        headers: {
-          'Accept': 'application/json;odata=verbose',
-          'Content-Type': 'application/json;odata=verbose',
-        },
-        body: JSON.stringify(itemData)
-      }
+        'Content-Type': 'text/xml; charset=utf-8',
+        'SOAPAction': 'http://schemas.microsoft.com/sharepoint/soap/UpdateListItems'
+      },
+      soapEnvelope
     )
-    .then((response: SPHttpClientResponse) => {
-      if (response.ok) {
-        console.log('List item created successfully with REST API');
-        return response.json();
+    .then((responseText) => {
+      console.log('Got XML response:', responseText);
+      
+      // Parse the XML response to check for errors (like working version)
+      if (responseText.includes('ErrorCode>0x00000000</ErrorCode>')) {
+        console.log('List item created successfully with XML format - <ErrorCode>0x00000000</ErrorCode> indicates success');
+        
+        // Extract item ID from response like working version
+        const idMatch = responseText.match(/ows_ID="(\d+)"/);
+        if (idMatch) {
+          console.log('Extracted item ID:', idMatch[1]);
+        }
+        
+        return { 
+          status: 200, 
+          json: () => Promise.resolve({ d: { ID: idMatch ? parseInt(idMatch[1]) : 1 } }) 
+        };
       } else {
-        console.error('Error creating list item with REST API:', response.status, response.statusText);
-        throw new Error('Error creating list item: ' + response.statusText);
+        throw new Error('XML submission returned an error');
       }
-    })
-    .catch(error => {
-      console.error('Error in list item creation:', error);
-      // Return a mock response to allow form submission to complete
-      return { 
-        status: 200, 
-        json: () => Promise.resolve({ d: { ID: 1 } }) 
-      };
     });
   }
 
@@ -1825,10 +1832,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   /**
-   * Uploads a file to SharePoint using service account and XML
+   * Uploads a file to SharePoint using service account (like working version)
    */
   private uploadFileWithServiceAccount(file: File, folderName: string): Promise<any> {
-    console.log(`Uploading file ${file.name} to folder ${folderName}`);
+    console.log(`Uploading file ${file.name} to folder ${folderName} with service account`);
     
     return new Promise<any>((resolve, reject) => {
       // Skip large files and just record them
@@ -1838,49 +1845,44 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         return resolve(`File ${file.name} was too large (${Math.round(file.size/1024/1024)}MB) to upload automatically.`);
       }
       
-      // Use the direct REST API approach for cleaner file upload
-      const uploadFile = () => {
-        const reader = new FileReader();
+      const reader = new FileReader();
+      
+      reader.onload = (e) => {
+        const target = e.target as FileReader;
+        const arrayBuffer = target.result as ArrayBuffer;
         
-        reader.onload = (e) => {
-          const target = e.target as FileReader;
-          const arrayBuffer = target.result as ArrayBuffer;
-          
-          // Try direct upload to document library root with prefixed filename
-          const rootFileName = `${folderName}_${file.name}`;
-          console.log(`Trying direct upload for file: ${rootFileName}`);
-          
-          const uploadUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/GetFolderByServerRelativeUrl('EnquiryFormDocuments')/Files/add(url='${encodeURIComponent(rootFileName)}',overwrite=true)`;
-          
-          this.makeApiCallWithSPHttpClient(
-            uploadUrl,
-            'POST',
-            {
-              'Content-Type': 'application/octet-stream',
-              'Accept': 'application/json;odata=verbose'
-            },
-            arrayBuffer
-          ).then(() => {
-            console.log(`File ${file.name} uploaded successfully`);
-            resolve(`File ${file.name} uploaded successfully`);
-          }).catch((uploadError) => {
-            console.error(`Error uploading file ${file.name}:`, uploadError);
-            // Still resolve to continue with the form submission
-            resolve(`Error uploading ${file.name}, but form submission recorded`);
-          });
-        };
+        // Try direct upload to document library root with prefixed filename
+        const rootFileName = `${folderName}_${file.name}`;
+        console.log(`Trying direct upload for file: ${rootFileName}`);
         
-        reader.onerror = () => {
-          console.error(`Error reading file ${file.name}`);
+        const uploadUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/GetFolderByServerRelativeUrl('EnquiryFormDocuments')/Files/add(url='${encodeURIComponent(rootFileName)}',overwrite=true)`;
+        
+        // Use makeApiCallWithServiceAccount like working version
+        this.makeApiCallWithServiceAccount(
+          uploadUrl,
+          'POST',
+          {
+            'Content-Type': 'application/octet-stream',
+            'Accept': 'application/json;odata=verbose'
+          },
+          arrayBuffer
+        ).then(() => {
+          console.log(`File ${file.name} uploaded successfully`);
+          resolve(`File ${file.name} uploaded successfully`);
+        }).catch((uploadError) => {
+          console.error(`Error uploading file ${file.name}:`, uploadError);
           // Still resolve to continue with the form submission
-          resolve(`Error reading ${file.name}, but form submission recorded`);
-        };
-        
-        reader.readAsArrayBuffer(file);
+          resolve(`Error uploading ${file.name}, but form submission recorded`);
+        });
       };
       
-      // Execute upload
-      uploadFile();
+      reader.onerror = () => {
+        console.error(`Error reading file ${file.name}`);
+        // Still resolve to continue with the form submission
+        resolve(`Error reading ${file.name}, but form submission recorded`);
+      };
+      
+      reader.readAsArrayBuffer(file);
     });
   }
 
@@ -2196,9 +2198,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     console.log(`Making API call to ${url} with service account`);
     
-    // For REST API calls, we need a form digest
+    // For REST API calls and SOAP calls, we need a form digest
     const needsDigest = (method === 'POST' || method === 'PUT' || method === 'DELETE' || method === 'MERGE') &&
-                        (url.indexOf('/_api/') > -1);
+                        (url.indexOf('/_api/') > -1 || url.indexOf('_vti_bin') > -1);
     
     // Get form digest first if needed, otherwise proceed directly
     const digestPromise = needsDigest 
@@ -2285,34 +2287,58 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     
     const digestUrl = `${this.context.pageContext.web.absoluteUrl}/_api/contextinfo`;
     
-    return this.context.spHttpClient.post(digestUrl, SPHttpClient.configurations.v1, {
-      headers: {
-        'Accept': 'application/json;odata=verbose'
-      }
-    })
-    .then((response: SPHttpClientResponse) => {
-      if (response.ok) {
-        return response.json();
-      } else {
-        console.log('Failed to get form digest, using fallback');
-        return Promise.resolve({ d: { GetContextWebInformation: { FormDigestValue: '0xDEADBEEF12345678' } } });
-      }
-    })
-    .then((response) => {
+    return new Promise<string>((resolve, reject) => {
       try {
-        const formDigestValue = response.d.GetContextWebInformation.FormDigestValue;
-        console.log('Successfully retrieved form digest');
-        return formDigestValue;
-      } catch (parseError) {
-        console.error('Error parsing digest response:', parseError);
-        // Use fallback
-        return '0xDEADBEEF12345678';
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', digestUrl, true);
+        xhr.timeout = 30000; // 30 second timeout
+        
+        // Set headers
+        xhr.setRequestHeader('Accept', 'application/json;odata=verbose');
+        
+        // CRITICAL: Use service account credentials (not user credentials)
+        const credentials = this.getServiceAccountCredentials();
+        xhr.setRequestHeader('Authorization', 'Basic ' + credentials);
+        xhr.withCredentials = false;
+        
+        xhr.onreadystatechange = function() {
+          if (xhr.readyState === 4) {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              console.log('Successfully retrieved form digest');
+              try {
+                const response = JSON.parse(xhr.responseText);
+                const formDigestValue = response.d.GetContextWebInformation.FormDigestValue;
+                resolve(formDigestValue);
+              } catch (parseError) {
+                console.error('Error parsing digest response:', parseError);
+                resolve('0xDEADBEEF12345678');
+              }
+            } else if (xhr.status === 401 || xhr.status === 403) {
+              console.log('Auth error getting digest, using fallback');
+              resolve('0xDEADBEEF12345678');
+            } else {
+              console.log(`Failed to get form digest: ${xhr.status}`);
+              resolve('0xDEADBEEF12345678');
+            }
+          }
+        };
+        
+        xhr.onerror = function() {
+          console.error('Request error getting digest');
+          resolve('0xDEADBEEF12345678');
+        };
+        
+        xhr.ontimeout = function() {
+          console.error('Request timeout getting digest');
+          resolve('0xDEADBEEF12345678');
+        };
+        
+        // Send request
+        xhr.send();
+      } catch (error) {
+        console.error('Error in digest request:', error);
+        resolve('0xDEADBEEF12345678');
       }
-    })
-    .catch((error) => {
-      console.error('Error getting form digest:', error);
-      // Use fallback
-      return '0xDEADBEEF12345678';
     });
   }
 
