@@ -771,6 +771,22 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       });
     }
     
+    // Setup immediate email validation for step 1
+    if (this.currentStep === 1) {
+      const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
+      if (emailInput) {
+        emailInput.addEventListener('blur', () => {
+          const emailValue = emailInput.value.trim();
+          
+          // Update form data
+          this.formData.emailAddress = emailValue;
+          
+          // Validate email immediately and update UI
+          this.validateEmailField();
+        });
+      }
+    }
+    
     // Setup country search and selection
     this.setupCountrySelector();
     
@@ -1257,6 +1273,37 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   private isValidEmail(email: string): boolean {
     const regex = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
     return regex.test(String(email).toLowerCase());
+  }
+
+  /**
+   * Validates just the email field and updates the UI immediately
+   */
+  private validateEmailField(): void {
+    const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
+    const emailField = emailInput ? emailInput.parentElement : null;
+    
+    if (emailInput && emailField) {
+      const emailValue = emailInput.value.trim();
+      const isValid = emailValue === '' || this.isValidEmail(emailValue);
+      const isEmpty = emailValue === '';
+      
+      // Remove existing error classes and messages
+      emailInput.classList.remove(styles.error);
+      const existingErrorMsg = emailField.querySelector('.email-error-msg');
+      if (existingErrorMsg) {
+        existingErrorMsg.remove();
+      }
+      
+      // Add error styling and message if invalid
+      if (!isEmpty && !isValid) {
+        emailInput.classList.add(styles.error);
+        
+        const errorMsg = document.createElement('div');
+        errorMsg.className = `${styles.errorText} email-error-msg`;
+        errorMsg.textContent = 'Please enter a valid email address';
+        emailField.appendChild(errorMsg);
+      }
+    }
   }
 
   private saveStep1Data(): void {
