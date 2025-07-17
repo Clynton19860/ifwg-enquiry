@@ -1584,106 +1584,54 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    * Creates a list item in the Enquiry Details list using XML format (like working version)
    */
   private createEnquiryDetailsListItem(): Promise<any> {
-    console.log('Creating list item in Enquiry Details list using XML format');
-    
-    // Ensure all values are initialized and safe for XML
-    const safeXmlValue = (value: any): string => {
-      if (value === undefined || value === null) {
-        return '';
-      }
-      // Escape XML special characters
-      return String(value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+    console.log('Creating list item via Node.js API');
+    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/create-list-item'; // Updated to use new reverse proxy path
+    const item = {
+      Title: `Enquiry from ${this.formData.fullName}`,
+      FullName: this.formData.fullName,
+      OrganisationName: this.formData.organisationName,
+      ContactNumber: this.formData.contactNumber,
+      EmailAddress: this.formData.emailAddress,
+      WebsiteAddress: this.formData.websiteAddress,
+      OperationLocation: this.formData.operationLocation,
+      CountriesOfOperation: (Array.isArray(this.formData.countriesOfOperation) ? this.formData.countriesOfOperation.join(', ') : ''),
+      OperationLength: this.formData.operationLength,
+      PrimaryBusinessAreas: this.formData.primaryBusinessAreas,
+      ProductServiceCategory: this.formData.productServiceCategory,
+      OtherProductServiceCategory: this.formData.otherProductServiceCategory,
+      OperationalStatus: this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : ''),
+      RegulatoryStatus: this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''),
+      Regulators: (Array.isArray(this.formData.regulators) ? this.formData.regulators.join(', ') : ''),
+      OtherRegulator: this.formData.otherRegulator,
+      ProductServiceDescription: this.formData.productServiceDescription,
+      Questions: (Array.isArray(this.formData.questions) ? this.formData.questions.join('\n\n') : ''),
+      AdditionalInformation: this.formData.additionalInformation,
+      FAQConfirmation: this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''),
+      ConsentConfirmation: this.formData.consentConfirmation ? 'Yes' : 'No',
+      FileAttachments: (this.formData.files && this.formData.files.length > 0) ? 'Yes' : 'No',
+      NumberOfAttachments: (this.formData.files ? this.formData.files.length.toString() : '0'),
+      SubmissionDate: new Date().toISOString()
     };
-    
-    // Ensure arrays exist before joining
-    const questionsArray = Array.isArray(this.formData.questions) ? this.formData.questions.filter(q => q && q.trim() !== '') : [];
-    const countriesArray = Array.isArray(this.formData.countriesOfOperation) ? this.formData.countriesOfOperation : [];
-    const regulatorsArray = Array.isArray(this.formData.regulators) ? this.formData.regulators : [];
-    
-    // Check if we have any files to upload
-    const hasFiles = this.formData.files && this.formData.files.length > 0;
-    console.log(`Has files to upload: ${hasFiles ? 'Yes' : 'No'}`);
-    
-    // Build SOAP envelope exactly like working version
-    const soapEnvelope = `<?xml version="1.0" encoding="utf-8"?>
-<soap:Envelope xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" 
-               xmlns:xsd="http://www.w3.org/2001/XMLSchema" 
-               xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
-  <soap:Body>
-    <UpdateListItems xmlns="http://schemas.microsoft.com/sharepoint/soap/">
-      <listName>Enquiry Details</listName>
-      <updates>
-        <Batch OnError="Continue">
-          <Method ID="1" Cmd="New">
-            <Field Name="Title">${safeXmlValue(`Enquiry from ${this.formData.fullName}`)}</Field>
-            <Field Name="FullName">${safeXmlValue(this.formData.fullName)}</Field>
-            <Field Name="OrganisationName">${safeXmlValue(this.formData.organisationName)}</Field>
-            <Field Name="ContactNumber">${safeXmlValue(this.formData.contactNumber)}</Field>
-            <Field Name="EmailAddress">${safeXmlValue(this.formData.emailAddress)}</Field>
-            <Field Name="WebsiteAddress">${safeXmlValue(this.formData.websiteAddress)}</Field>
-            <Field Name="OperationLocation">${safeXmlValue(this.formData.operationLocation)}</Field>
-            <Field Name="CountriesOfOperation">${safeXmlValue(countriesArray.join(', '))}</Field>
-            <Field Name="OperationLength">${safeXmlValue(this.formData.operationLength)}</Field>
-            <Field Name="PrimaryBusinessAreas">${safeXmlValue(this.formData.primaryBusinessAreas)}</Field>
-            <Field Name="ProductServiceCategory">${safeXmlValue(this.formData.productServiceCategory)}</Field>
-            <Field Name="OtherProductServiceCategory">${safeXmlValue(this.formData.otherProductServiceCategory)}</Field>
-            <Field Name="OperationalStatus">${safeXmlValue(this.formData.operationalStatus === true ? 'Yes' : (this.formData.operationalStatus === false ? 'No' : ''))}</Field>
-            <Field Name="RegulatoryStatus">${safeXmlValue(this.formData.regulatoryStatus === true ? 'Yes' : (this.formData.regulatoryStatus === false ? 'No' : ''))}</Field>
-            <Field Name="Regulators">${safeXmlValue(regulatorsArray.join(', '))}</Field>
-            <Field Name="OtherRegulator">${safeXmlValue(this.formData.otherRegulator)}</Field>
-            <Field Name="ProductServiceDescription">${safeXmlValue(this.formData.productServiceDescription)}</Field>
-            <Field Name="Questions">${safeXmlValue(questionsArray.join('\n\n'))}</Field>
-            <Field Name="AdditionalInformation">${safeXmlValue(this.formData.additionalInformation)}</Field>
-            <Field Name="FAQConfirmation">${safeXmlValue(this.formData.faqConfirmation === true ? 'Yes' : (this.formData.faqConfirmation === false ? 'No' : ''))}</Field>
-            <Field Name="ConsentConfirmation">${safeXmlValue(this.formData.consentConfirmation ? 'Yes' : 'No')}</Field>
-            <Field Name="FileAttachments">${safeXmlValue(hasFiles ? 'Yes' : 'No')}</Field>
-            <Field Name="NumberOfAttachments">${safeXmlValue(this.formData.files ? this.formData.files.length.toString() : '0')}</Field>
-            <Field Name="SubmissionDate">${safeXmlValue(new Date().toISOString())}</Field>
-          </Method>
-        </Batch>
-      </updates>
-    </UpdateListItems>
-  </soap:Body>
-</soap:Envelope>`;
-
-    const webServiceUrl = `${this.context.pageContext.web.absoluteUrl}/_vti_bin/lists.asmx`;
-    console.log(`Using Lists web service URL: ${webServiceUrl}`);
-    
-    return this.makeApiCallWithServiceAccount(
-      webServiceUrl,
-      'POST',
-      {
-        'Content-Type': 'text/xml; charset=utf-8',
-        'SOAPAction': 'http://schemas.microsoft.com/sharepoint/soap/UpdateListItems'
+    return fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
       },
-      soapEnvelope
-    )
-    .then((responseText) => {
-      console.log('Got XML response:', responseText);
-      
-      // Parse the XML response to check for errors (like working version)
-      if (responseText.includes('ErrorCode>0x00000000</ErrorCode>')) {
-        console.log('List item created successfully with XML format - <ErrorCode>0x00000000</ErrorCode> indicates success');
-        
-        // Extract item ID from response like working version
-        const idMatch = responseText.match(/ows_ID="(\d+)"/);
-        if (idMatch) {
-          console.log('Extracted item ID:', idMatch[1]);
+      body: JSON.stringify(item)
+    })
+      .then(response => {
+        if (!response.ok) throw new Error('API call failed: ' + response.status);
+        return response.json();
+      })
+      .then(data => {
+        if (data && data.d && data.d.Id) {
+          console.log('List item created successfully via Node.js API. Item ID:', data.d.Id);
+          return { status: 200, json: () => Promise.resolve({ d: { ID: data.d.Id } }) };
+        } else {
+          console.error('Node.js API response did not contain item ID:', data);
+          throw new Error('Node.js API submission returned an error');
         }
-        
-        return { 
-          status: 200, 
-          json: () => Promise.resolve({ d: { ID: idMatch ? parseInt(idMatch[1]) : 1 } }) 
-        };
-      } else {
-        throw new Error('XML submission returned an error');
-      }
-    });
+      });
   }
 
   /**
@@ -1882,54 +1830,37 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    * Uploads a file to SharePoint using service account (like working version)
    */
   private uploadFileWithServiceAccount(file: File, folderName: string): Promise<any> {
-    console.log(`Uploading file ${file.name} to folder ${folderName} with service account`);
-    
+    console.log(`Uploading file ${file.name} to folder ${folderName} via Node.js API`);
+    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/upload-file'; // Updated to use new reverse proxy path
     return new Promise<any>((resolve, reject) => {
-      // Skip large files and just record them
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         console.log(`File ${file.name} exceeds 10MB, skipping actual upload but recording submission`);
-        // Consider it successful but note that it wasn't actually uploaded
         return resolve(`File ${file.name} was too large (${Math.round(file.size/1024/1024)}MB) to upload automatically.`);
       }
-      
-      const reader = new FileReader();
-      
-      reader.onload = (e) => {
-        const target = e.target as FileReader;
-        const arrayBuffer = target.result as ArrayBuffer;
-        
-        // Try direct upload to document library root with prefixed filename
-        const rootFileName = `${folderName}_${file.name}`;
-        console.log(`Trying direct upload for file: ${rootFileName}`);
-        
-        const uploadUrl = `${this.context.pageContext.web.absoluteUrl}/_api/web/GetFolderByServerRelativeUrl('EnquiryFormDocuments')/Files/add(url='${encodeURIComponent(rootFileName)}',overwrite=true)`;
-        
-        // Use makeApiCallWithServiceAccount like working version
-        this.makeApiCallWithServiceAccount(
-          uploadUrl,
-          'POST',
-          {
-            'Content-Type': 'application/octet-stream',
-            'Accept': 'application/json;odata=verbose'
-          },
-          arrayBuffer
-        ).then(() => {
-          console.log(`File ${file.name} uploaded successfully`);
-          resolve(`File ${file.name} uploaded successfully`);
-        }).catch((uploadError) => {
-          console.error(`Error uploading file ${file.name}:`, uploadError);
-          // Still resolve to continue with the form submission
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      formData.append('folderName', folderName);
+      fetch(apiUrl, {
+        method: 'POST',
+        body: formData
+      })
+        .then(response => {
+          if (!response.ok) throw new Error('API call failed: ' + response.status);
+          return response.json();
+        })
+        .then(data => {
+          if (data && data.d && data.d.ServerRelativeUrl) {
+            console.log(`File ${file.name} uploaded successfully via Node.js API. ServerRelativeUrl:`, data.d.ServerRelativeUrl);
+            resolve(`File ${file.name} uploaded successfully`);
+          } else {
+            console.error('Node.js API file upload response did not contain ServerRelativeUrl:', data);
+            resolve(`Error uploading ${file.name}, but form submission recorded`);
+          }
+        })
+        .catch((uploadError) => {
+          console.error(`Error uploading file ${file.name} via Node.js API:`, uploadError);
           resolve(`Error uploading ${file.name}, but form submission recorded`);
         });
-      };
-      
-      reader.onerror = () => {
-        console.error(`Error reading file ${file.name}`);
-        // Still resolve to continue with the form submission
-        resolve(`Error reading ${file.name}, but form submission recorded`);
-      };
-      
-      reader.readAsArrayBuffer(file);
     });
   }
 
