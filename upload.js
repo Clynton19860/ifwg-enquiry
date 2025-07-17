@@ -49,7 +49,8 @@ app.post('/api/create-list-item', async (req, res) => {
       json: false
     };
     const response = await request(options);
-    res.status(201).json(JSON.parse(response));
+    const responseData = JSON.parse(response);
+    res.status(201).json(responseData.d);
   } catch (error) {
     console.error('Error creating list item:', error.message);
     res.status(500).json({ error: error.message, details: error.error });
@@ -79,7 +80,8 @@ app.post('/api/upload-file', upload.single('file'), async (req, res) => {
       json: false
     };
     const response = await request(options);
-    res.status(200).json(JSON.parse(response));
+    const responseData = JSON.parse(response);
+    res.status(200).json(responseData.d);
   } catch (error) {
     console.error('Error uploading file:', error.message);
     res.status(500).json({ error: error.message, details: error.error });

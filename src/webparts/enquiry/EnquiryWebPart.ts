@@ -1581,11 +1581,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   /**
-   * Creates a list item in the Enquiry Details list using XML format (like working version)
+   * Creates a list item in the Enquiry Details list using the new upload.js API
    */
   private createEnquiryDetailsListItem(): Promise<any> {
-    console.log('Creating list item via Node.js API');
-    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/create-list-item'; // Updated to use new reverse proxy path
+    console.log('Creating list item via upload.js API');
+    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/create-list-item';
     const item = {
       Title: `Enquiry from ${this.formData.fullName}`,
       FullName: this.formData.fullName,
@@ -1624,12 +1624,12 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         return response.json();
       })
       .then(data => {
-        if (data && data.d && data.d.Id) {
-          console.log('List item created successfully via Node.js API. Item ID:', data.d.Id);
-          return { status: 200, json: () => Promise.resolve({ d: { ID: data.d.Id } }) };
+        if (data && data.Id) {
+          console.log('List item created successfully via upload.js API. Item ID:', data.Id);
+          return { status: 201, json: () => Promise.resolve({ Id: data.Id }) };
         } else {
-          console.error('Node.js API response did not contain item ID:', data);
-          throw new Error('Node.js API submission returned an error');
+          console.error('upload.js API response did not contain item ID:', data);
+          throw new Error('upload.js API submission returned an error');
         }
       });
   }
@@ -1827,11 +1827,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   /**
-   * Uploads a file to SharePoint using service account (like working version)
+   * Uploads a file to SharePoint using the new upload.js API
    */
   private uploadFileWithServiceAccount(file: File, folderName: string): Promise<any> {
-    console.log(`Uploading file ${file.name} to folder ${folderName} via Node.js API`);
-    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/upload-file'; // Updated to use new reverse proxy path
+    console.log(`Uploading file ${file.name} to folder ${folderName} via upload.js API`);
+    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/upload-file';
     return new Promise<any>((resolve, reject) => {
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         console.log(`File ${file.name} exceeds 10MB, skipping actual upload but recording submission`);
@@ -1849,16 +1849,16 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           return response.json();
         })
         .then(data => {
-          if (data && data.d && data.d.ServerRelativeUrl) {
-            console.log(`File ${file.name} uploaded successfully via Node.js API. ServerRelativeUrl:`, data.d.ServerRelativeUrl);
+          if (data && data.ServerRelativeUrl) {
+            console.log(`File ${file.name} uploaded successfully via upload.js API. ServerRelativeUrl:`, data.ServerRelativeUrl);
             resolve(`File ${file.name} uploaded successfully`);
           } else {
-            console.error('Node.js API file upload response did not contain ServerRelativeUrl:', data);
+            console.error('upload.js API file upload response did not contain ServerRelativeUrl:', data);
             resolve(`Error uploading ${file.name}, but form submission recorded`);
           }
         })
         .catch((uploadError) => {
-          console.error(`Error uploading file ${file.name} via Node.js API:`, uploadError);
+          console.error(`Error uploading file ${file.name} via upload.js API:`, uploadError);
           resolve(`Error uploading ${file.name}, but form submission recorded`);
         });
     });
