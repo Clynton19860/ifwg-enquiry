@@ -766,4 +766,44 @@
       }
     }
   }
+
+  // Loading spinner styles
+  .loadingSpinner {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top: 2px solid #ffffff;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+
+  .submitButton {
+    position: relative;
+    transition: all 0.3s ease;
+    
+    &:disabled {
+      opacity: 0.7;
+      cursor: not-allowed;
+    }
+    
+    &.loading {
+      background-color: #005a9e;
+      color: white;
+      
+      &:hover {
+        background-color: #005a9e;
+      }
+    }
+  }
 }

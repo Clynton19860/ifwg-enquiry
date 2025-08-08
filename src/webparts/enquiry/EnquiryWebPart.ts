@@ -164,6 +164,9 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   
   // Validation flag
   private validateAttempted: boolean = false;
+  
+  // Loading state for form submission
+  private isSubmitting: boolean = false;
 
   public render(): void {
     this.domElement.innerHTML = `
@@ -542,7 +545,14 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         
         <div class="${ styles.formActions }">
           <button type="button" class="${ styles.button } ${styles.backButton}" id="backToStep2">Back</button>
-          <button type="button" class="${ styles.button } ${styles.submitButton}" id="submitBtn">${escape(this.properties.submitButtonText || 'Submit')}</button>
+          <button type="button" class="${ styles.button } ${styles.submitButton}" id="submitBtn" ${this.isSubmitting ? 'disabled' : ''} style="${this.isSubmitting ? 'opacity: 0.7; cursor: not-allowed;' : ''}">
+            ${this.isSubmitting ? `
+              <div style="display: inline-flex; align-items: center; gap: 8px;">
+                <div style="width: 16px; height: 16px; border: 2px solid transparent; border-top: 2px solid #ffffff; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+                <span>Submitting...</span>
+              </div>
+            ` : escape(this.properties.submitButtonText || 'Submit')}
+          </button>
         </div>
       </div>
     `;
@@ -671,6 +681,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         // Prevent default behavior
         e.preventDefault();
         
+        // Prevent multiple submissions
+        if (this.isSubmitting) {
+          return;
+        }
+        
         console.log('Submit button clicked');
         
         // Make sure to save current data before validation
@@ -772,19 +787,19 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
     }
     
     // Setup immediate email validation for step 1
-    if (this.currentStep === 1) {
-      const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
-      if (emailInput) {
-        emailInput.addEventListener('blur', () => {
-          const emailValue = emailInput.value.trim();
-          
-          // Update form data
-          this.formData.emailAddress = emailValue;
-          
-          // Validate email immediately and update UI
-          this.validateEmailField();
-        });
-      }
+    const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
+    if (emailInput) {
+      console.log('Setting up email validation for immediate feedback');
+      emailInput.addEventListener('blur', () => {
+        console.log('Email field lost focus, validating...');
+        const emailValue = emailInput.value.trim();
+        
+        // Update form data
+        this.formData.emailAddress = emailValue;
+        
+        // Validate email immediately and update UI
+        this.validateEmailField();
+      });
     }
     
     // Setup country search and selection
@@ -1279,6 +1294,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    * Validates just the email field and updates the UI immediately
    */
   private validateEmailField(): void {
+    console.log('validateEmailField called');
     const emailInput = this.domElement.querySelector('#emailAddress') as HTMLInputElement;
     const emailField = emailInput ? emailInput.parentElement : null;
     
@@ -1287,15 +1303,19 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       const isValid = emailValue === '' || this.isValidEmail(emailValue);
       const isEmpty = emailValue === '';
       
+      console.log('Email validation:', { emailValue, isValid, isEmpty });
+      
       // Remove existing error classes and messages
       emailInput.classList.remove(styles.error);
       const existingErrorMsg = emailField.querySelector('.email-error-msg');
       if (existingErrorMsg) {
+        console.log('Removing existing error message');
         existingErrorMsg.remove();
       }
       
       // Add error styling and message if invalid
       if (!isEmpty && !isValid) {
+        console.log('Adding error styling and message');
         emailInput.classList.add(styles.error);
         
         const errorMsg = document.createElement('div');
@@ -1303,6 +1323,8 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         errorMsg.textContent = 'Please enter a valid email address';
         emailField.appendChild(errorMsg);
       }
+    } else {
+      console.log('Email input or field not found');
     }
   }
 
@@ -1456,13 +1478,11 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
   }
 
   private submitForm(): void {
-    // Show loading state
+    // Set loading state
+    this.isSubmitting = true;
+    this.render(); // Re-render to show loading state
+    
     console.log('Starting form submission process...');
-    const submitButton = this.domElement.querySelector('.submit-btn') as HTMLButtonElement;
-    if (submitButton) {
-      submitButton.disabled = true;
-      submitButton.innerHTML = 'Submitting...';
-    }
     
     console.log('Form data being submitted:', JSON.stringify(this.formData, null, 2));
     
@@ -1493,6 +1513,10 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
       })
       .then(() => {
         console.log('Form submission completed successfully, showing thank you step');
+        
+        // Clear loading state
+        this.isSubmitting = false;
+        
         // Show thank you step
         this.currentStep = 4;
         this.render();
@@ -1510,8 +1534,12 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
           window.onbeforeunload = null;
         }, 3000);
       })
-      .catch((error) => {
+              .catch((error) => {
         console.error('Error submitting form:', error);
+        
+        // Clear loading state
+        this.isSubmitting = false;
+        this.render(); // Re-render to hide loading state
         
         // Log error details
         if (error.message) {
@@ -1519,12 +1547,6 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
         }
         if (error.stack) {
           console.error('Error stack:', error.stack);
-        }
-        
-        // Re-enable submit button
-        if (submitButton) {
-          submitButton.disabled = false;
-          submitButton.innerHTML = this.properties.submitButtonText || 'Submit';
         }
         
         // Show error message to the user
@@ -1585,7 +1607,7 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private createEnquiryDetailsListItem(): Promise<any> {
     console.log('Creating list item via upload.js API');
-    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/create-list-item';
+    const apiUrl = 'https://integration.fsca.co.za/api/create-list-item';
     const item = {
       Title: `Enquiry from ${this.formData.fullName}`,
       FullName: this.formData.fullName,
@@ -1831,15 +1853,15 @@ export default class EnquiryWebPart extends BaseClientSideWebPart<IEnquiryWebPar
    */
   private uploadFileWithServiceAccount(file: File, folderName: string): Promise<any> {
     console.log(`Uploading file ${file.name} to folder ${folderName} via upload.js API`);
-    const apiUrl = 'https://www.ifwg.co.za/nodeproxyapi/upload-file';
+    const apiUrl = 'https://integration.fsca.co.za/api/upload-doc';
     return new Promise<any>((resolve, reject) => {
       if (file.size > 10 * 1024 * 1024) { // 10MB limit
         console.log(`File ${file.name} exceeds 10MB, skipping actual upload but recording submission`);
         return resolve(`File ${file.name} was too large (${Math.round(file.size/1024/1024)}MB) to upload automatically.`);
       }
       const formData = new FormData();
-      formData.append('file', file, file.name);
-      formData.append('folderName', folderName);
+      formData.append('document', file, file.name);
+     // formData.append('folderName', folderName);
       fetch(apiUrl, {
         method: 'POST',
         body: formData
